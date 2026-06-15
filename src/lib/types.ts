@@ -29,6 +29,14 @@ export interface DatedEntry extends Entry {
   _d: number;
 }
 
+export interface MovementEditPayload {
+  amount: number;
+  cat: string;
+  desc: string;
+  date: string;
+  applyGroup: boolean;
+}
+
 export type LedgerData = Record<string, Entry[]>;
 
 export interface Settings {

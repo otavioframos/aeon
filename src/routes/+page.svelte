@@ -5,12 +5,14 @@
   import DataSheet from '$lib/components/DataSheet.svelte';
   import EntryComposer from '$lib/components/EntryComposer.svelte';
   import FluxHeader from '$lib/components/FluxHeader.svelte';
+  import MovementsPanel from '$lib/components/MovementsPanel.svelte';
+  import MovementsPreview from '$lib/components/MovementsPreview.svelte';
   import SettingsPanel from '$lib/components/SettingsPanel.svelte';
   import MeshBackground from '$lib/MeshBackground.svelte';
   import { catById } from '$lib/categories';
-  import { DEFAULT_SETTINGS, aggregate, entriesIn, monthAgg, parseAmount } from '$lib/finance';
-  import { loadData, loadSettings, normalizeBackup, saveData, saveSettings as persistSettings } from '$lib/storage';
-  import { buildTransactionEntries, todayISO } from '$lib/transactions';
+  import { DEFAULT_SETTINGS, aggregate, entriesIn, key, monthAgg, parseAmount } from '$lib/finance';
+  import { listDataYears, loadData, loadSettings, normalizeBackup, saveData, saveSettings as persistSettings } from '$lib/storage';
+  import { addMonthsClamped, buildTransactionEntries, datePartsFromISO, splitAmount, todayISO } from '$lib/transactions';
   import {
     allocationModel,
     buildRankItems,
@@ -30,6 +32,7 @@
     HeatCell,
     HeroModel,
     LedgerData,
+    MovementEditPayload,
     RankItem,
     RankMode,
     ReserveModel,
@@ -56,6 +59,8 @@
   let sheetOpen = false;
   let dashOpen = false;
   let setOpen = false;
+  let movementOpen = false;
+  let editingMovement: DatedEntry | null = null;
   let flashText = 'salvo';
   let flashVisible = false;
   let flashTimer: ReturnType<typeof setTimeout>;
@@ -70,6 +75,8 @@
   let trendRows: TrendRow[] = [];
   let heatCells: HeatCell[] = [];
   let dayEntries: DatedEntry[] = [];
+  let currentYearMovements: DatedEntry[] = [];
+  let recentMovements: DatedEntry[] = [];
   let yearlyData: Aggregate = aggregate([]);
   let allocation: AllocationModel = allocationModel(scopedData);
   let hero: HeroModel = heroModel(scopedData, scope, year, scopeMonth, settings);
@@ -84,6 +91,8 @@
   $: dayEntries = selectedDay
     ? entriesIn(data, (y, m, d) => y === year && m === scopeMonth && d === selectedDay)
     : [];
+  $: currentYearMovements = sortMovements(entriesIn(data, (y) => y === year));
+  $: recentMovements = currentYearMovements.slice(0, 4);
   $: yearlyData = aggregate(entriesIn(data, (y) => y === year));
   $: allocation = allocationModel(scopedData);
   $: hero = heroModel(scopedData, scope, year, scopeMonth, settings);
@@ -156,7 +165,7 @@
       }
       const yearData = byYear.get(item.year);
       if (!yearData) return;
-        yearData[item.entryKey] = [...(yearData[item.entryKey] || []), item.entry];
+      yearData[item.entryKey] = [...(yearData[item.entryKey] || []), item.entry];
     });
 
     try {
@@ -171,6 +180,160 @@
     } catch {
       alert('Salvamento bloqueado aqui. Baixe o arquivo e abra no seu navegador para salvar de verdade.');
     }
+  }
+
+  function sortMovements(list: DatedEntry[]) {
+    return [...list].sort((a, b) => b._m - a._m || b._d - a._d || b.id.localeCompare(a.id));
+  }
+
+  function knownYears(extraYears: number[] = []) {
+    return [...new Set([year, ...listDataYears(), ...extraYears])].sort((a, b) => a - b);
+  }
+
+  function mutableYearData(targetYear: number, byYear: Map<number, LedgerData>) {
+    if (!byYear.has(targetYear)) {
+      byYear.set(targetYear, targetYear === year ? { ...data } : loadData(targetYear));
+    }
+    return byYear.get(targetYear);
+  }
+
+  function writeMutationYears(byYear: Map<number, LedgerData>) {
+    try {
+      byYear.forEach((yearData, itemYear) => saveData(itemYear, yearData));
+      if (byYear.has(year)) data = byYear.get(year) || data;
+      else if (byYear.size) data = loadData(year);
+    } catch {
+      alert('Salvamento bloqueado aqui. Baixe o arquivo e abra no seu navegador para salvar de verdade.');
+    }
+  }
+
+  function removeMovementFromData(yearData: LedgerData, entry: DatedEntry) {
+    const entryKey = key(entry._y, entry._m, entry._d);
+    yearData[entryKey] = (yearData[entryKey] || []).filter((item) => item.id !== entry.id);
+    if (!yearData[entryKey].length) delete yearData[entryKey];
+  }
+
+  function upsertMovementInData(yearData: LedgerData, targetYear: number, targetMonth: number, targetDay: number, entry: DatedEntry) {
+    const entryKey = key(targetYear, targetMonth, targetDay);
+    const { _y, _m, _d, ...cleanEntry } = entry;
+    yearData[entryKey] = [...(yearData[entryKey] || []), cleanEntry];
+  }
+
+  function findInstallmentGroup(groupId: string) {
+    const groupEntries: DatedEntry[] = [];
+    knownYears().forEach((itemYear) => {
+      const yearData = itemYear === year ? data : loadData(itemYear);
+      entriesIn(yearData, (entryYear) => entryYear === itemYear).forEach((entry) => {
+        if (entry.installmentGroupId === groupId) groupEntries.push(entry);
+      });
+    });
+    return groupEntries.sort((a, b) => (a.installmentIndex || 0) - (b.installmentIndex || 0));
+  }
+
+  function entryTypeFromCategory(cat: string): EntryType {
+    return cat === 'renda' ? 'in' : 'out';
+  }
+
+  function openMovementEditor(entry: DatedEntry) {
+    editingMovement = entry;
+    movementOpen = true;
+  }
+
+  function saveMovementEdit(entry: DatedEntry, payload: MovementEditPayload) {
+    if (payload.applyGroup && entry.installmentGroupId) {
+      updateMovementGroup(entry.installmentGroupId, payload);
+    } else {
+      updateSingleMovement(entry, payload);
+    }
+    editingMovement = null;
+    flash('atualizado');
+  }
+
+  function updateSingleMovement(entry: DatedEntry, payload: MovementEditPayload) {
+    const target = datePartsFromISO(payload.date || todayISO());
+    const byYear = new Map<number, LedgerData>();
+    const sourceData = mutableYearData(entry._y, byYear);
+    const targetData = mutableYearData(target.year, byYear);
+    if (!sourceData || !targetData) return;
+
+    removeMovementFromData(sourceData, entry);
+    upsertMovementInData(targetData, target.year, target.month, target.day, {
+      ...entry,
+      amount: payload.amount,
+      cat: payload.cat,
+      desc: payload.desc,
+      type: entryTypeFromCategory(payload.cat),
+      purchaseDate: payload.date,
+      sourceAmount: payload.amount
+    });
+    writeMutationYears(byYear);
+  }
+
+  function updateMovementGroup(groupId: string, payload: MovementEditPayload) {
+    const groupEntries = findInstallmentGroup(groupId);
+    if (!groupEntries.length) return;
+
+    const amounts = splitAmount(payload.amount, groupEntries.length);
+    const byYear = new Map<number, LedgerData>();
+
+    groupEntries.forEach((entry) => {
+      const sourceData = mutableYearData(entry._y, byYear);
+      if (sourceData) removeMovementFromData(sourceData, entry);
+    });
+
+    groupEntries.forEach((entry, index) => {
+      const target = addMonthsClamped(payload.date || todayISO(), index);
+      const targetData = mutableYearData(target.year, byYear);
+      if (!targetData) return;
+      upsertMovementInData(targetData, target.year, target.month, target.day, {
+        ...entry,
+        amount: amounts[index],
+        cat: payload.cat,
+        desc: payload.desc,
+        type: entryTypeFromCategory(payload.cat),
+        purchaseDate: payload.date,
+        sourceAmount: payload.amount,
+        installmentIndex: index + 1,
+        installmentCount: groupEntries.length
+      });
+    });
+
+    writeMutationYears(byYear);
+  }
+
+  function deleteMovement(entry: DatedEntry, scope: 'single' | 'group') {
+    if (scope === 'group' && entry.installmentGroupId) {
+      const groupEntries = findInstallmentGroup(entry.installmentGroupId);
+      if (!groupEntries.length) return false;
+      if (!confirm(`Tem certeza que deseja apagar todas as ${groupEntries.length} parcelas?`)) return false;
+      deleteMovements(groupEntries);
+      editingMovement = null;
+      flash('apagado');
+      return true;
+    }
+
+    if (!confirm('Tem certeza que deseja apagar este movimento?')) return false;
+    deleteMovements([entry]);
+    editingMovement = null;
+    flash('apagado');
+    return true;
+  }
+
+  function deleteSelectedMovements(entries: DatedEntry[]) {
+    if (!entries.length) return false;
+    if (!confirm(`Tem certeza que deseja apagar os ${entries.length} movimentos selecionados?`)) return false;
+    deleteMovements(entries);
+    flash('apagados');
+    return true;
+  }
+
+  function deleteMovements(entries: DatedEntry[]) {
+    const byYear = new Map<number, LedgerData>();
+    entries.forEach((entry) => {
+      const yearData = mutableYearData(entry._y, byYear);
+      if (yearData) removeMovementFromData(yearData, entry);
+    });
+    writeMutationYears(byYear);
   }
 
   function updateSetting(keyName: keyof Settings, value: number) {
@@ -269,9 +432,9 @@
   <title>Vela</title>
 </svelte:head>
 
-<MeshBackground bind:this={mesh} dimmed={sheetOpen || dashOpen || setOpen} {settings} />
+<MeshBackground bind:this={mesh} dimmed={sheetOpen || dashOpen || setOpen || movementOpen} {settings} />
 
-<div class:dimmed={sheetOpen || dashOpen || setOpen} class="app">
+<div class:dimmed={sheetOpen || dashOpen || setOpen || movementOpen} class="app">
   <FluxHeader {currentMonth} onOpenDashboard={openDashboard} onOpenSettings={() => (setOpen = true)} />
   <EntryComposer
     bind:amount
@@ -283,9 +446,23 @@
     bind:amountInput
     onSubmit={addEntry}
   />
+  <MovementsPreview entries={recentMovements} onOpen={() => (movementOpen = true)} onEdit={openMovementEditor} />
 </div>
 
 <DataSheet bind:open={sheetOpen} onExportData={exportData} onExportCSV={exportCSV} onImportDataFile={importDataFile} onResetYear={resetYear} />
+
+<MovementsPanel
+  bind:open={movementOpen}
+  bind:editingEntry={editingMovement}
+  entries={currentYearMovements}
+  onClose={() => {
+    movementOpen = false;
+    editingMovement = null;
+  }}
+  onSave={saveMovementEdit}
+  onDelete={deleteMovement}
+  onDeleteSelected={deleteSelectedMovements}
+/>
 
 <AnalyticsPanel
   bind:open={dashOpen}

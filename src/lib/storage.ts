@@ -17,6 +17,21 @@ export function saveData(year: number, data: LedgerData) {
   localStorage.setItem(PFX + year, JSON.stringify(data));
 }
 
+export function listDataYears() {
+  const years = new Set<number>();
+  try {
+    for (let index = 0; index < localStorage.length; index++) {
+      const storageKey = localStorage.key(index);
+      if (!storageKey?.startsWith(PFX)) continue;
+      const year = Number(storageKey.slice(PFX.length));
+      if (Number.isFinite(year)) years.add(year);
+    }
+  } catch {
+    return [];
+  }
+  return [...years].sort((a, b) => a - b);
+}
+
 export function loadSettings(): Settings {
   try {
     const raw = localStorage.getItem(SET_KEY);
