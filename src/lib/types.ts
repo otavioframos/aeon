@@ -47,6 +47,75 @@ export interface Aggregate {
   byGroup: Record<string, number>;
 }
 
+export interface RankItem {
+  k: string;
+  v: number;
+  name: string;
+  icon: string;
+  pct: number;
+  width: number;
+  delta: string;
+  deltaClass: 'up' | 'down';
+}
+
+export interface ReserveModel {
+  areaPath: string;
+  beLabel: string;
+  beX: number | null;
+  height: number;
+  horizon: number;
+  linePath: string;
+  monthlyAport: number;
+  padL: number;
+  padR: number;
+  pctOfTarget: number;
+  reserveTotal: number;
+  runway: number;
+  runwayColor: string;
+  runwayLabel: string;
+  target: number;
+  targetY: number;
+  width: number;
+}
+
+export interface TrendRow {
+  month: string;
+  incPct: number;
+  expPct: number;
+  current: boolean;
+}
+
+export interface HeatCell {
+  day: number;
+  value: number;
+  background: string;
+  blank: boolean;
+}
+
+export interface AllocationSegment {
+  length: number;
+  offset: number;
+  color: string;
+  group: string;
+  pct: number;
+}
+
+export interface AllocationModel {
+  investmentPct: number;
+  segments: AllocationSegment[];
+}
+
+export interface HeroModel {
+  burn: number;
+  budget: number;
+  dayLabel: string;
+  markerPos: number;
+  pacePct: number;
+  projected: number;
+  savings: number;
+  levelColor: string;
+}
+
 export interface BackupPayload {
   year?: number;
   data?: LedgerData;
