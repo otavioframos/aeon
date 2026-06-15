@@ -1,5 +1,6 @@
 <script lang="ts">
   import { catById } from '$lib/categories';
+  import AnalyticsMetricRail from '$lib/components/AnalyticsMetricRail.svelte';
   import { DOW, MONTHS_FULL, entriesIn, fmtNum, fmtShort, monthAgg, monthSafetyLevel } from '$lib/finance';
   import type {
     Aggregate,
@@ -40,8 +41,8 @@
   }
 </script>
 
-<button class:open={open} class="ov-backdrop" aria-label="Fechar painel" on:click={() => (open = false)}></button>
-<section class:open={open} class="panel" aria-hidden={!open}>
+<button class:open={open} class="ov-backdrop" aria-hidden={!open} aria-label="Fechar painel" tabindex={open ? 0 : -1} on:click={() => (open = false)}></button>
+<section class:open={open} class="panel" aria-hidden={!open} inert={!open}>
   <div class="panel-inner">
     <div class="panel-top">
       <div class="panel-title">Resumo <span class="yr">{scope === 'year' ? year : MONTHS_FULL[scopeMonth].toLowerCase()}</span></div>
@@ -90,6 +91,8 @@
             </div>
           </div>
         </div>
+
+        <AnalyticsMetricRail {scope} {year} {scopeMonth} {settings} {scopedData} {hero} {reserve} {rankItems} {heatCells} {trendRows} />
 
         <div class="sec-h">
           <span class="st">Para onde foi</span>

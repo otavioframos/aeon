@@ -42,8 +42,8 @@
   }
 </script>
 
-<button class:open={open} class="ov-backdrop" aria-label="Fechar ajustes" on:click={() => (open = false)}></button>
-<section class:open={open} class="panel" aria-hidden={!open}>
+<button class:open={open} class="ov-backdrop" aria-hidden={!open} aria-label="Fechar ajustes" tabindex={open ? 0 : -1} on:click={() => (open = false)}></button>
+<section class:open={open} class="panel" aria-hidden={!open} inert={!open}>
   <div class="panel-inner">
     <div class="panel-top">
       <div class="panel-title">Ajustes</div>

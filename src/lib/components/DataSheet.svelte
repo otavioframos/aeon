@@ -11,8 +11,8 @@
 <button class="fab" aria-label="Mais" on:click={() => (open = !open)}>
   <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></svg>
 </button>
-<button class:open={open} class="sheet-backdrop" aria-label="Fechar dados" on:click={() => (open = false)}></button>
-<div class:open={open} class="sheet">
+<button class:open={open} class="sheet-backdrop" aria-hidden={!open} aria-label="Fechar dados" tabindex={open ? 0 : -1} on:click={() => (open = false)}></button>
+<div class:open={open} class="sheet" aria-hidden={!open} inert={!open}>
   <div class="grab"></div>
   <h3>Dados</h3>
   <button class="sheet-row" on:click={() => { onExportData(); open = false; }}>

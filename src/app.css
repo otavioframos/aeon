@@ -482,6 +482,7 @@ button {
 .date-field {
   position: relative;
   min-height: 44px;
+  width: 100%;
   margin-top: var(--space-2);
   border: var(--stroke-default) solid var(--line);
   border-radius: var(--radius-card);
@@ -503,13 +504,146 @@ button {
   stroke-width: 1.6;
 }
 
-.date-field input {
-  position: absolute;
+.date-field:active {
+  background: var(--surface-2);
+}
+
+.date-picker-backdrop {
+  position: fixed;
   inset: 0;
-  width: 100%;
-  height: 100%;
+  z-index: 70;
+  background: var(--color-overlay);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   opacity: 0;
-  cursor: pointer;
+  pointer-events: none;
+  transition: opacity var(--motion-base) var(--ease-standard);
+}
+
+.date-picker-backdrop.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.date-picker-sheet {
+  position: fixed;
+  left: 18px;
+  right: 18px;
+  bottom: calc(18px + env(safe-area-inset-bottom));
+  z-index: 71;
+  max-width: 354px;
+  margin: 0 auto;
+  padding: var(--space-3);
+  background: var(--color-bg-raised);
+  border: var(--stroke-default) solid var(--line);
+  border-radius: var(--radius-panel);
+  box-shadow: 0 28px 64px -24px rgba(0, 0, 0, 0.9);
+  transform: translateY(calc(100% + 40px)) scale(0.98);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform var(--motion-panel) var(--ease-emphasized), opacity var(--motion-base) var(--ease-standard);
+}
+
+.date-picker-sheet.open {
+  transform: translateY(0) scale(1);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.date-picker-top,
+.date-picker-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.date-picker-kicker {
+  font-size: var(--fs-tiny);
+  color: var(--muted);
+  margin-bottom: 2px;
+}
+
+.date-picker-title {
+  font-family: var(--serif);
+  font-size: var(--fs-section);
+  line-height: 1;
+  color: var(--text);
+}
+
+.date-picker-nav {
+  margin-top: var(--space-3);
+}
+
+.date-picker-nav button {
+  min-width: 44px;
+  min-height: 44px;
+  border: var(--stroke-default) solid var(--line);
+  border-radius: var(--radius-card);
+  color: var(--text-2);
+  display: grid;
+  place-items: center;
+}
+
+.date-picker-nav button:active {
+  background: var(--surface-2);
+}
+
+.date-picker-nav svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+}
+
+.date-today {
+  flex: 1;
+  font-size: var(--fs-action);
+}
+
+.date-weekdays,
+.date-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+.date-weekdays {
+  margin: var(--space-3) 0 var(--space-1);
+}
+
+.date-weekdays span {
+  text-align: center;
+  font-size: var(--fs-tiny);
+  color: var(--muted);
+}
+
+.date-grid button,
+.date-blank {
+  aspect-ratio: 1;
+  min-height: 44px;
+  border-radius: var(--radius-card);
+}
+
+.date-grid button {
+  border: var(--stroke-default) solid transparent;
+  background: var(--color-input-fill);
+  color: var(--text-2);
+  font-family: var(--mono);
+  font-size: var(--fs-caption);
+  font-variant-numeric: tabular-nums;
+  transition: background var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard), transform var(--motion-fast) var(--ease-standard);
+}
+
+.date-grid button:active {
+  transform: scale(0.94);
+}
+
+.date-grid button.selected {
+  background: var(--color-cta);
+  color: var(--color-text-inverse-deep);
+  border-color: var(--color-cta);
 }
 
 .movements-preview {
@@ -955,7 +1089,8 @@ button {
   padding: var(--space-3);
 }
 
-.movement-edit-card label {
+.movement-edit-card label,
+.movement-field {
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -964,8 +1099,13 @@ button {
   font-size: var(--fs-caption);
 }
 
-.movement-edit-card label:last-child {
+.movement-edit-card label:last-child,
+.movement-field:last-child {
   margin-bottom: 0;
+}
+
+.movement-field .date-field {
+  margin-top: 0;
 }
 
 .movement-edit-card input,
@@ -1145,6 +1285,166 @@ button {
   height: 12px;
   background: var(--text-2);
   opacity: 0.55;
+}
+
+.metric-rail {
+  display: flex;
+  gap: var(--space-2);
+  margin: 0 calc(var(--space-page-x) * -1) var(--space-3);
+  padding: 0 var(--space-page-x) var(--space-2);
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.metric-rail::-webkit-scrollbar {
+  display: none;
+}
+
+.metric-card {
+  position: relative;
+  flex: 0 0 158px;
+  min-height: 124px;
+  scroll-snap-align: start;
+  background: var(--bg-card);
+  border: var(--stroke-default) solid var(--line);
+  border-radius: var(--radius-card);
+  padding: var(--space-3);
+  overflow: hidden;
+}
+
+.metric-card-map {
+  flex-basis: 176px;
+}
+
+.metric-name,
+.metric-line {
+  font-family: var(--serif);
+  font-size: var(--fs-card-title);
+  line-height: 1.05;
+  color: var(--text);
+}
+
+.metric-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  font-family: var(--sans);
+  font-size: var(--fs-caption);
+  color: var(--text-2);
+}
+
+.metric-sub {
+  margin-top: 5px;
+  font-size: var(--fs-caption);
+  line-height: 1.2;
+  color: var(--muted);
+}
+
+.metric-value {
+  margin-top: var(--space-3);
+  font-family: var(--serif);
+  font-size: var(--fs-brand);
+  line-height: 1;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.metric-card-pace .metric-value {
+  font-size: var(--fs-section);
+}
+
+.metric-chip {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  min-height: 24px;
+  padding: 5px 9px;
+  border: var(--stroke-default) solid rgba(163, 6, 6, 0.35);
+  border-radius: var(--radius-pill);
+  color: var(--color-red);
+  font-size: var(--fs-micro);
+  line-height: 1;
+}
+
+.metric-chip.on {
+  border-color: var(--color-green);
+  color: var(--color-green);
+}
+
+.metric-icon {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  width: 22px;
+  height: 22px;
+  stroke: var(--text-2);
+  fill: none;
+  stroke-width: 1.5;
+}
+
+.metric-arrow {
+  position: absolute;
+  top: var(--space-2);
+  left: var(--space-3);
+  color: var(--color-green);
+  font-size: var(--fs-subsection);
+  line-height: 1;
+}
+
+.metric-heat {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  margin-top: var(--space-2);
+}
+
+.metric-heat span {
+  aspect-ratio: 1;
+  border-radius: var(--radius-graph);
+  background: var(--color-stroke);
+}
+
+.metric-heat span.blank {
+  background: transparent;
+}
+
+.metric-mini-bars {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 3px;
+  height: 78px;
+  margin-top: var(--space-2);
+  align-items: end;
+}
+
+.metric-mini-bars span {
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+  gap: 1px;
+  opacity: 0.7;
+}
+
+.metric-mini-bars span.current {
+  opacity: 1;
+}
+
+.metric-mini-bars i {
+  display: block;
+  flex: 1;
+  min-height: 2px;
+  border-radius: var(--radius-graph);
+}
+
+.metric-mini-bars .income {
+  background: var(--text);
+}
+
+.metric-mini-bars .expense {
+  background: var(--color-red-soft);
 }
 
 .sec-h {

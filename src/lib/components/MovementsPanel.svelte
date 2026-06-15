@@ -1,5 +1,6 @@
 <script lang="ts">
   import { CATS, catById } from '$lib/categories';
+  import DatePicker from '$lib/components/DatePicker.svelte';
   import { fmtNum, MONTHS_FULL, parseAmount } from '$lib/finance';
   import { dateLabel } from '$lib/transactions';
   import type { DatedEntry, MovementEditPayload } from '$lib/types';
@@ -111,8 +112,8 @@
   }
 </script>
 
-<button class:open={open} class="ov-backdrop" aria-label="Fechar painel de movimentos" on:click={closePanel}></button>
-<section class:open={open} class="panel movements-panel" aria-hidden={!open}>
+<button class:open={open} class="ov-backdrop" aria-hidden={!open} aria-label="Fechar painel de movimentos" tabindex={open ? 0 : -1} on:click={closePanel}></button>
+<section class:open={open} class="panel movements-panel" aria-hidden={!open} inert={!open}>
   <div class="panel-inner">
     {#if editingEntry}
       <div class="panel-top">
@@ -139,10 +140,10 @@
               {/each}
             </select>
           </label>
-          <label>
+          <div class="movement-field">
             <span>Data</span>
-            <input bind:value={editDate} type="date" />
-          </label>
+            <DatePicker bind:value={editDate} label="Data" />
+          </div>
           {#if editingEntry.installmentGroupId}
             <label class="movement-check">
               <input bind:checked={editApplyGroup} type="checkbox" />

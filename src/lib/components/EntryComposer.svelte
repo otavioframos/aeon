@@ -1,7 +1,8 @@
 <script lang="ts">
   import { CATS, catById } from '$lib/categories';
+  import DatePicker from '$lib/components/DatePicker.svelte';
   import { fmtNum, parseAmount } from '$lib/finance';
-  import { dateLabel, splitAmount } from '$lib/transactions';
+  import { splitAmount } from '$lib/transactions';
 
   export let amount = '';
   export let desc = '';
@@ -21,7 +22,6 @@
   $: parsedAmount = parseAmount(amount);
   $: installmentAmount =
     Number.isNaN(parsedAmount) || installmentCount <= 1 ? 0 : splitAmount(Math.abs(parsedAmount), installmentCount)[0];
-  $: purchaseDateText = dateLabel(purchaseDate);
   $: submitLabel = isIncome
     ? 'Lançar renda'
     : installmentCount > 1
@@ -70,11 +70,7 @@
             </div>
           </div>
 
-          <label class="date-field">
-            <span>Compra: {purchaseDateText}</span>
-            <svg viewBox="0 0 24 24"><path d="M8 2v4M16 2v4M3 10h18" /><path d="M5 5h14a2 2 0 012 2v12a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2z" /></svg>
-            <input bind:value={purchaseDate} type="date" />
-          </label>
+          <DatePicker bind:value={purchaseDate} label="Compra" />
 
           {#if installmentCount > 1 && installmentAmount}
             <div class="installment-note">{installmentCount}x de R$ {fmtNum(installmentAmount)}</div>
