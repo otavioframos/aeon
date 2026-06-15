@@ -1,5 +1,5 @@
 import { daysInMonth, key, uid } from './finance';
-import type { Entry, EntryType } from './types';
+import type { Entry, EntryType, TransactionStatus } from './types';
 
 export interface TransactionDraft {
   totalAmount: number;
@@ -38,8 +38,17 @@ export function datePartsFromISO(value: string) {
 export function dateLabel(value: string) {
   const { year, month, day } = datePartsFromISO(value);
   const today = todayISO();
-  if (value === today) return 'Hoje';
+  if (value === today) return 'Today';
   return `${String(day).padStart(2, '0')}/${String(month + 1).padStart(2, '0')}/${year}`;
+}
+
+export function dateIndex(year: number, month: number, day: number) {
+  return year * 10000 + (month + 1) * 100 + day;
+}
+
+export function statusForDateParts(year: number, month: number, day: number, now = new Date()): TransactionStatus {
+  const todayIndex = dateIndex(now.getFullYear(), now.getMonth(), now.getDate());
+  return dateIndex(year, month, day) > todayIndex ? 'forecast' : 'realized';
 }
 
 export function addMonthsClamped(base: string, offset: number) {
@@ -76,6 +85,7 @@ export function buildTransactionEntries(draft: TransactionDraft): GeneratedTrans
         type: draft.type,
         cat: draft.cat,
         desc: draft.desc,
+        status: statusForDateParts(target.year, target.month, target.day),
         purchaseDate,
         sourceAmount: Math.abs(draft.totalAmount),
         installmentGroupId: groupId,

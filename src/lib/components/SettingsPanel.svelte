@@ -7,34 +7,33 @@
   export let open = false;
   export let settings: Settings;
   export let onUpdateSetting: (keyName: keyof Settings, value: number) => void;
+  export let onExportData: () => void;
+  export let onExportCSV: () => void;
+  export let onImportDataFile: (event: Event) => void;
+  export let onResetYear: () => void;
 
-  const goalSliders: { key: GoalKey; label: string; icon: string }[] = [
-    { key: 'essenciais', label: 'Essenciais', icon: '<path d="M3 12l9-9 9 9"/><path d="M5 10v10h14V10"/>' },
-    { key: 'desejos', label: 'Desejos', icon: '<path d="M12 21s-7-4.5-7-10a4 4 0 017-2 4 4 0 017 2c0 5.5-7 10-7 10z"/>' },
-    { key: 'investimentos', label: 'Investimentos', icon: '<path d="M3 17l6-6 4 4 8-8"/><path d="M17 7h4v4"/>' }
+  let fileInput: HTMLInputElement | undefined;
+
+  const goalSliders: { key: GoalKey; label: string; caption: string; color: string; icon: string }[] = [
+    { key: 'essenciais', label: 'Essentials', caption: 'rent, food, recurring needs', color: '#85b694', icon: '<path d="M3 12l9-9 9 9"/><path d="M5 10v10h14V10"/>' },
+    { key: 'desejos', label: 'Desires', caption: 'comfort, fun, flexible spend', color: '#6b6fa0', icon: '<path d="M12 21s-7-4.5-7-10a4 4 0 017-2 4 4 0 017 2c0 5.5-7 10-7 10z"/>' },
+    { key: 'investimentos', label: 'Investment', caption: 'reserve, education, portfolio', color: '#66710e', icon: '<path d="M3 17l6-6 4 4 8-8"/><path d="M17 7h4v4"/>' }
   ];
 
   const meshSliders: { key: MeshKey; label: string; min: number; max: number; step: number; decimals: number }[] = [
-    { key: 'dotSpacing', label: 'Espaçamento', min: 10, max: 40, step: 1, decimals: 0 },
-    { key: 'dotSize', label: 'Tamanho do ponto', min: 0.5, max: 4, step: 0.1, decimals: 1 },
-    { key: 'dotOpacity', label: 'Opacidade', min: 0.05, max: 0.8, step: 0.01, decimals: 2 },
-    { key: 'waveIntensity', label: 'Força da onda', min: 0, max: 30, step: 1, decimals: 0 },
-    { key: 'waveRadius', label: 'Alcance da onda', min: 80, max: 400, step: 10, decimals: 0 },
-    { key: 'noise', label: 'Dithering', min: 0, max: 0.2, step: 0.005, decimals: 3 }
+    { key: 'dotSpacing', label: 'Dot spacing', min: 10, max: 40, step: 1, decimals: 0 },
+    { key: 'dotSize', label: 'Dot size', min: 0.5, max: 4, step: 0.1, decimals: 1 },
+    { key: 'dotOpacity', label: 'Field opacity', min: 0.05, max: 0.8, step: 0.01, decimals: 2 },
+    { key: 'waveIntensity', label: 'Wave force', min: 0, max: 30, step: 1, decimals: 0 },
+    { key: 'waveRadius', label: 'Wave reach', min: 80, max: 400, step: 10, decimals: 0 },
+    { key: 'noise', label: 'Dither noise', min: 0, max: 0.2, step: 0.005, decimals: 3 }
   ];
 
-  function metaWarnings() {
-    const sum = settings.essenciais + settings.desejos + settings.investimentos;
-    const warnings: { kind: 'ok' | 'warn' | 'bad'; text: string }[] = [];
-    if (sum !== 100) warnings.push({ kind: 'warn', text: `As fatias somam ${sum}%. Ajuste para fechar 100%.` });
-    if (settings.investimentos < 10) {
-      warnings.push({ kind: 'bad', text: 'Investir abaixo de 10% é conservador demais — como autônomo, isso pesa na aposentadoria.' });
-    } else if (settings.investimentos >= 30) {
-      warnings.push({ kind: 'ok', text: `Meta de ${settings.investimentos}% em investimentos é excelente.` });
-    }
-    if (settings.essenciais > 60) warnings.push({ kind: 'bad', text: 'Essenciais acima de 60% deixa pouca folga.' });
-    if (settings.desejos > 40) warnings.push({ kind: 'warn', text: 'Desejos acima de 40% pode comprometer a poupança.' });
-    return warnings.length ? warnings : [{ kind: 'ok' as const, text: 'Divisão equilibrada.' }];
+  $: allocationTotal = settings.essenciais + settings.desejos + settings.investimentos;
+  $: monthlyInvestmentTarget = settings.salary * (settings.investimentos / 100);
+
+  function fmt(value: number) {
+    return value.toLocaleString('pt-BR', { maximumFractionDigits: 0 });
   }
 
   function fmtAes(value: number, decimals: number) {
@@ -42,47 +41,132 @@
   }
 </script>
 
-<button class:open={open} class="ov-backdrop" aria-hidden={!open} aria-label="Fechar ajustes" tabindex={open ? 0 : -1} on:click={() => (open = false)}></button>
-<section class:open={open} class="panel" aria-hidden={!open} inert={!open}>
+<button class:open={open} class="ov-backdrop" aria-hidden={!open} aria-label="Close settings" tabindex={open ? 0 : -1} on:click={() => (open = false)}></button>
+<section class:open={open} class="panel settings-panel" aria-hidden={!open} inert={!open}>
   <div class="panel-inner">
-    <div class="panel-top">
-      <div class="panel-title">Ajustes</div>
-      <button class="icon-btn small-icon" aria-label="Fechar" on:click={() => (open = false)}>
+    <header class="settings-top">
+      <div>
+        <span>Vela</span>
+        <h1>Settings</h1>
+      </div>
+      <button class="icon-btn small-icon" aria-label="Close settings" on:click={() => (open = false)}>
         <svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12" /></svg>
       </button>
-    </div>
-    <div class="panel-scroll">
-      <div class="set-field">
-        <div class="lh">Salário de referência</div>
-        <input type="number" value={settings.salary} step="100" on:input={(event) => onUpdateSetting('salary', parseFloat((event.currentTarget as HTMLInputElement).value) || 0)} />
-        <div class="ms set-note">Base do gasto diário e do pace. Use um valor conservador se sua renda varia.</div>
-      </div>
+    </header>
 
-      <div class="set-field">
-        <div class="lh">Metas de alocação</div>
-        {#each goalSliders as goal}
-          <div class="slider-row">
-            <span class="sn"><svg viewBox="0 0 24 24">{@html goal.icon}</svg>{goal.label}</span>
-            <input type="range" min="0" max="100" value={settings[goal.key]} on:input={(event) => onUpdateSetting(goal.key, parseInt((event.currentTarget as HTMLInputElement).value))} />
-            <span class="sval">{settings[goal.key]}%</span>
+    <div class="panel-scroll settings-scroll">
+      <section class="settings-hero-card">
+        <div class="settings-balance-grid">
+          <div>
+            <span>Current balance</span>
+            <label>
+              <small>R$</small>
+              <input
+                type="number"
+                value={settings.currentBalance}
+                step="0.01"
+                on:input={(event) => onUpdateSetting('currentBalance', parseFloat((event.currentTarget as HTMLInputElement).value) || 0)}
+              />
+            </label>
           </div>
-        {/each}
-        <div class="sum-pill">Soma: {settings.essenciais + settings.desejos + settings.investimentos}%{settings.essenciais + settings.desejos + settings.investimentos !== 100 ? ' (ideal: 100%)' : ' ✓'}</div>
-        {#each metaWarnings() as warning}
-          <div class={`meta-warn ${warning.kind}`}>{warning.text}</div>
-        {/each}
-      </div>
+          <div>
+            <span>Reference income</span>
+            <label>
+              <small>R$</small>
+              <input type="number" value={settings.salary} step="100" on:input={(event) => onUpdateSetting('salary', parseFloat((event.currentTarget as HTMLInputElement).value) || 0)} />
+            </label>
+          </div>
+        </div>
+        <p>Current balance is the account anchor. Reference income only sets pace, targets and runway.</p>
+      </section>
 
-      <div class="set-field">
-        <div class="lh">Estética do fundo</div>
-        {#each meshSliders as slider}
-          <div class="slider-row">
-            <span class="sn">{slider.label}</span>
-            <input type="range" min={slider.min} max={slider.max} step={slider.step} value={settings[slider.key]} on:input={(event) => onUpdateSetting(slider.key, parseFloat((event.currentTarget as HTMLInputElement).value))} />
-            <span class="sval">{fmtAes(settings[slider.key], slider.decimals)}</span>
+      <section class="settings-card">
+        <div class="settings-card-head">
+          <div>
+            <h2>Allocation plan</h2>
+            <p>Monthly target: R$ {fmt(monthlyInvestmentTarget)} into investment lanes.</p>
           </div>
-        {/each}
-      </div>
+          <span class:off={allocationTotal !== 100} class="settings-total">{allocationTotal}%</span>
+        </div>
+
+        <div class="allocation-controls">
+          {#each goalSliders as goal}
+            <label class="allocation-control">
+              <span class="allocation-icon" style:color={goal.color}><svg viewBox="0 0 24 24">{@html goal.icon}</svg></span>
+              <span class="allocation-copy">
+                <strong>{goal.label}</strong>
+                <small>{goal.caption}</small>
+              </span>
+              <span class="allocation-value">{settings[goal.key]}%</span>
+              <input type="range" min="0" max="100" value={settings[goal.key]} on:input={(event) => onUpdateSetting(goal.key, parseInt((event.currentTarget as HTMLInputElement).value))} />
+            </label>
+          {/each}
+        </div>
+
+        {#if allocationTotal !== 100}
+          <p class="settings-warning">Allocation should close at 100%. You are {allocationTotal > 100 ? `${allocationTotal - 100}% over` : `${100 - allocationTotal}% under`}.</p>
+        {:else}
+          <p class="settings-note">Balanced. Flux and Aeon will read these targets cleanly.</p>
+        {/if}
+      </section>
+
+      <section class="settings-card">
+        <div class="settings-card-head">
+          <div>
+            <h2>Dither field</h2>
+            <p>Controls the Vela background texture and launch wave.</p>
+          </div>
+        </div>
+        <div class="mesh-controls">
+          {#each meshSliders as slider}
+            <label class="mesh-control">
+              <span>{slider.label}</span>
+              <input type="range" min={slider.min} max={slider.max} step={slider.step} value={settings[slider.key]} on:input={(event) => onUpdateSetting(slider.key, parseFloat((event.currentTarget as HTMLInputElement).value))} />
+              <strong>{fmtAes(settings[slider.key], slider.decimals)}</strong>
+            </label>
+          {/each}
+        </div>
+      </section>
+
+      <section class="settings-card">
+        <div class="settings-card-head">
+          <div>
+            <h2>Data</h2>
+            <p>Backup, spreadsheet export and local restore live here.</p>
+          </div>
+        </div>
+        <div class="settings-data-actions">
+          <button type="button" on:click={onExportData}>
+            <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><path d="M7 10l5 5 5-5" /><path d="M12 15V3" /></svg>
+            <span>
+              <strong>Backup</strong>
+              <small>Export JSON</small>
+            </span>
+          </button>
+          <button type="button" on:click={onExportCSV}>
+            <svg viewBox="0 0 24 24"><path d="M4 3h10l6 6v12H4z" /><path d="M14 3v6h6" /><path d="M8 13h8M8 17h8" /></svg>
+            <span>
+              <strong>Spreadsheet</strong>
+              <small>Export CSV</small>
+            </span>
+          </button>
+          <button type="button" on:click={() => fileInput?.click()}>
+            <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><path d="M17 8l-5-5-5 5" /><path d="M12 3v12" /></svg>
+            <span>
+              <strong>Restore</strong>
+              <small>Import JSON</small>
+            </span>
+          </button>
+          <button class="danger" type="button" on:click={onResetYear}>
+            <svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6" /></svg>
+            <span>
+              <strong>Reset year</strong>
+              <small>Delete local entries</small>
+            </span>
+          </button>
+        </div>
+        <input bind:this={fileInput} class="settings-file-input" type="file" accept=".json" on:change={onImportDataFile} />
+      </section>
     </div>
   </div>
 </section>

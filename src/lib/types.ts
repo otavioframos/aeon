@@ -1,4 +1,5 @@
 export type EntryType = 'in' | 'out';
+export type TransactionStatus = 'realized' | 'forecast';
 export type Scope = 'month' | 'year';
 export type RankMode = 'cat' | 'group';
 export type SafetyLevel = 'green' | 'yellow' | 'red';
@@ -16,6 +17,7 @@ export interface Entry {
   type: EntryType;
   cat: string;
   desc: string;
+  status?: TransactionStatus;
   purchaseDate?: string;
   sourceAmount?: number;
   installmentGroupId?: string;
@@ -40,6 +42,7 @@ export interface MovementEditPayload {
 export type LedgerData = Record<string, Entry[]>;
 
 export interface Settings {
+  currentBalance: number;
   salary: number;
   essenciais: number;
   desejos: number;
@@ -58,6 +61,22 @@ export interface Aggregate {
   net: number;
   byCat: Record<string, number>;
   byGroup: Record<string, number>;
+}
+
+export interface CashSnapshot {
+  realBalance: number;
+  expectedIncome: number;
+  dueExpenses: number;
+  freeToSpend: number;
+}
+
+export interface ProjectionMonth {
+  month: number;
+  opening: number | null;
+  income: number;
+  expenses: number;
+  closing: number | null;
+  active: boolean;
 }
 
 export interface RankItem {

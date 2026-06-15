@@ -2,7 +2,9 @@
   import { onMount, tick } from 'svelte';
   import '../app.css';
   import AnalyticsPanel from '$lib/components/AnalyticsPanel.svelte';
-  import DataSheet from '$lib/components/DataSheet.svelte';
+  import AppDialog from '$lib/components/AppDialog.svelte';
+  import BalanceCards from '$lib/components/BalanceCards.svelte';
+  import BottomNav from '$lib/components/BottomNav.svelte';
   import DatePickerSheet from '$lib/components/DatePickerSheet.svelte';
   import EntryComposer from '$lib/components/EntryComposer.svelte';
   import FluxHeader from '$lib/components/FluxHeader.svelte';
@@ -10,10 +12,11 @@
   import MovementsPreview from '$lib/components/MovementsPreview.svelte';
   import SettingsPanel from '$lib/components/SettingsPanel.svelte';
   import MeshBackground from '$lib/MeshBackground.svelte';
-  import { catById } from '$lib/categories';
+  import { currentMonthCash, projectionMonths, resolvedStatus } from '$lib/cashModel';
+  import { catById, isPortfolioCategory } from '$lib/categories';
   import { DEFAULT_SETTINGS, aggregate, entriesIn, key, monthAgg, parseAmount } from '$lib/finance';
   import { listDataYears, loadData, loadSettings, normalizeBackup, saveData, saveSettings as persistSettings } from '$lib/storage';
-  import { addMonthsClamped, buildTransactionEntries, datePartsFromISO, splitAmount, todayISO } from '$lib/transactions';
+  import { addMonthsClamped, buildTransactionEntries, datePartsFromISO, splitAmount, statusForDateParts, todayISO } from '$lib/transactions';
   import {
     allocationModel,
     buildRankItems,
@@ -28,6 +31,7 @@
     Aggregate,
     AllocationModel,
     BackupPayload,
+    CashSnapshot,
     DatedEntry,
     EntryType,
     HeatCell,
@@ -39,7 +43,8 @@
     ReserveModel,
     Scope,
     Settings,
-    TrendRow
+    TrendRow,
+    ProjectionMonth
   } from '$lib/types';
 
   type MeshHandle = { triggerWave: (type: EntryType) => void };
@@ -57,7 +62,6 @@
   let rankMode: RankMode = 'cat';
   let selectedDay: number | null = null;
   let controlOpen = false;
-  let sheetOpen = false;
   let dashOpen = false;
   let setOpen = false;
   let movementOpen = false;
@@ -66,13 +70,21 @@
   let datePickerLabel = 'Data';
   let datePickerValue = todayISO();
   let commitPickedDate: ((value: string) => void) | null = null;
+  let dialogOpen = false;
+  let dialogTitle = '';
+  let dialogMessage = '';
+  let dialogConfirmLabel = 'OK';
+  let dialogCancelLabel = 'Cancel';
+  let dialogShowCancel = false;
+  let dialogDestructive = false;
+  let dialogResolve: ((value: boolean) => void) | null = null;
   let flashText = 'salvo';
   let flashVisible = false;
   let flashTimer: ReturnType<typeof setTimeout>;
   let amountInput: HTMLInputElement | undefined;
   let mesh: MeshHandle;
 
-  let currentMonth: Aggregate = aggregate([]);
+  let cashSnapshot: CashSnapshot = currentMonthCash(data, settings);
   let scopedData: Aggregate = aggregate([]);
   let previousScopedData: Aggregate = aggregate([]);
   let rankItems: RankItem[] = [];
@@ -83,10 +95,15 @@
   let currentYearMovements: DatedEntry[] = [];
   let recentMovements: DatedEntry[] = [];
   let yearlyData: Aggregate = aggregate([]);
+  let investmentBalance = 0;
+  let investmentSeries: number[] = [];
+  let investmentTarget = 0;
+  let scopedPortfolioContribution = 0;
+  let projections: ProjectionMonth[] = [];
   let allocation: AllocationModel = allocationModel(scopedData);
   let hero: HeroModel = heroModel(scopedData, scope, year, scopeMonth, settings);
 
-  $: currentMonth = monthAgg(data, year, new Date().getMonth());
+  $: cashSnapshot = currentMonthCash(data, settings);
   $: scopedData = getScopeData(data, year, scope, scopeMonth);
   $: previousScopedData = getPrevScopeData(data, year, scope, scopeMonth);
   $: rankItems = buildRankItems(scopedData, previousScopedData, rankMode);
@@ -96,9 +113,16 @@
   $: dayEntries = selectedDay
     ? entriesIn(data, (y, m, d) => y === year && m === scopeMonth && d === selectedDay)
     : [];
-  $: currentYearMovements = sortMovements(entriesIn(data, (y) => y === year));
-  $: recentMovements = currentYearMovements.slice(0, 4);
+  $: currentYearMovements = sortMovements(entriesIn(data, () => true));
+  $: recentMovements = recentRealMovements(entriesIn(data, () => true)).slice(0, 4);
   $: yearlyData = aggregate(entriesIn(data, (y) => y === year));
+  $: investmentBalance = portfolioTotalEntries(entriesIn(data, (y) => y === year));
+  $: investmentSeries = monthlyInvestmentSeries(data, year);
+  $: investmentTarget = settings.salary * (settings.investimentos / 100);
+  $: scopedPortfolioContribution = portfolioTotalEntries(
+    entriesIn(data, (y, m) => (scope === 'year' ? y === year : y === year && m === scopeMonth))
+  );
+  $: projections = projectionMonths(data, year, settings);
   $: allocation = allocationModel(scopedData);
   $: hero = heroModel(scopedData, scope, year, scopeMonth, settings);
 
@@ -122,7 +146,7 @@
       saveData(year, data);
       flash();
     } catch {
-      alert('Salvamento bloqueado aqui. Baixe o arquivo e abra no seu navegador para salvar de verdade.');
+      showNotice('Storage blocked', 'Open the app in your browser or export a backup to keep this data safely.');
     }
   }
 
@@ -147,6 +171,36 @@
     datePickerOpen = false;
   }
 
+  function askDialog(options: {
+    title: string;
+    message: string;
+    confirmLabel?: string;
+    cancelLabel?: string;
+    showCancel?: boolean;
+    destructive?: boolean;
+  }) {
+    dialogTitle = options.title;
+    dialogMessage = options.message;
+    dialogConfirmLabel = options.confirmLabel || 'OK';
+    dialogCancelLabel = options.cancelLabel || 'Cancel';
+    dialogShowCancel = Boolean(options.showCancel);
+    dialogDestructive = Boolean(options.destructive);
+    dialogOpen = true;
+    return new Promise<boolean>((resolve) => {
+      dialogResolve = resolve;
+    });
+  }
+
+  function resolveDialog(value: boolean) {
+    dialogOpen = false;
+    dialogResolve?.(value);
+    dialogResolve = null;
+  }
+
+  function showNotice(title: string, message: string) {
+    void askDialog({ title, message, confirmLabel: 'OK' });
+  }
+
   function addEntry() {
     const value = parseAmount(amount);
     if (Number.isNaN(value) || value === 0) {
@@ -155,10 +209,11 @@
     }
 
     const type: EntryType = selCat === 'renda' ? 'in' : 'out';
+    const categoryId = selCat || (type === 'in' ? 'renda' : 'outros');
     const generated = buildTransactionEntries({
       totalAmount: Math.abs(value),
       type,
-      cat: selCat,
+      cat: categoryId,
       desc: desc.trim(),
       purchaseDate: purchaseDate || todayISO(),
       installmentCount
@@ -196,12 +251,37 @@
       }
       flash(generated.length > 1 ? `${generated.length} parcelas` : 'salvo');
     } catch {
-      alert('Salvamento bloqueado aqui. Baixe o arquivo e abra no seu navegador para salvar de verdade.');
+      showNotice('Storage blocked', 'Open the app in your browser or export a backup to keep this data safely.');
     }
   }
 
   function sortMovements(list: DatedEntry[]) {
-    return [...list].sort((a, b) => b._m - a._m || b._d - a._d || b.id.localeCompare(a.id));
+    return [...list].sort((a, b) => b._y - a._y || b._m - a._m || b._d - a._d || b.id.localeCompare(a.id));
+  }
+
+  function recentRealMovements(list: DatedEntry[]) {
+    return sortMovements(
+      list.filter((entry) => {
+        if (resolvedStatus(entry) !== 'realized') return false;
+        if (entry.installmentIndex && entry.installmentIndex > 1) return false;
+        return true;
+      })
+    );
+  }
+
+  function monthlyInvestmentSeries(sourceData: LedgerData, currentYear: number) {
+    let cumulative = 0;
+    return Array.from({ length: 12 }, (_, month) => {
+      cumulative += portfolioTotalEntries(entriesIn(sourceData, (entryYear, entryMonth) => entryYear === currentYear && entryMonth === month));
+      return cumulative;
+    });
+  }
+
+  function portfolioTotalEntries(entries: DatedEntry[]) {
+    return entries.reduce((sum, entry) => {
+      if (entry.type !== 'out' || !isPortfolioCategory(entry.cat) || resolvedStatus(entry) !== 'realized') return sum;
+      return sum + entry.amount;
+    }, 0);
   }
 
   function knownYears(extraYears: number[] = []) {
@@ -221,7 +301,7 @@
       if (byYear.has(year)) data = byYear.get(year) || data;
       else if (byYear.size) data = loadData(year);
     } catch {
-      alert('Salvamento bloqueado aqui. Baixe o arquivo e abra no seu navegador para salvar de verdade.');
+      showNotice('Storage blocked', 'Open the app in your browser or export a backup to keep this data safely.');
     }
   }
 
@@ -281,6 +361,7 @@
       cat: payload.cat,
       desc: payload.desc,
       type: entryTypeFromCategory(payload.cat),
+      status: statusForDateParts(target.year, target.month, target.day),
       purchaseDate: payload.date,
       sourceAmount: payload.amount
     });
@@ -309,6 +390,7 @@
         cat: payload.cat,
         desc: payload.desc,
         type: entryTypeFromCategory(payload.cat),
+        status: statusForDateParts(target.year, target.month, target.day),
         purchaseDate: payload.date,
         sourceAmount: payload.amount,
         installmentIndex: index + 1,
@@ -319,27 +401,48 @@
     writeMutationYears(byYear);
   }
 
-  function deleteMovement(entry: DatedEntry, scope: 'single' | 'group') {
+  async function deleteMovement(entry: DatedEntry, scope: 'single' | 'group') {
     if (scope === 'group' && entry.installmentGroupId) {
       const groupEntries = findInstallmentGroup(entry.installmentGroupId);
       if (!groupEntries.length) return false;
-      if (!confirm(`Tem certeza que deseja apagar todas as ${groupEntries.length} parcelas?`)) return false;
+      const confirmed = await askDialog({
+        title: 'Delete installments?',
+        message: `Are you sure you want to delete all ${groupEntries.length} installments?`,
+        confirmLabel: 'Delete',
+        showCancel: true,
+        destructive: true
+      });
+      if (!confirmed) return false;
       deleteMovements(groupEntries);
       editingMovement = null;
       flash('apagado');
       return true;
     }
 
-    if (!confirm('Tem certeza que deseja apagar este movimento?')) return false;
+    const confirmed = await askDialog({
+      title: 'Delete movement?',
+      message: 'Are you sure you want to delete this movement?',
+      confirmLabel: 'Delete',
+      showCancel: true,
+      destructive: true
+    });
+    if (!confirmed) return false;
     deleteMovements([entry]);
     editingMovement = null;
     flash('apagado');
     return true;
   }
 
-  function deleteSelectedMovements(entries: DatedEntry[]) {
+  async function deleteSelectedMovements(entries: DatedEntry[]) {
     if (!entries.length) return false;
-    if (!confirm(`Tem certeza que deseja apagar os ${entries.length} movimentos selecionados?`)) return false;
+    const confirmed = await askDialog({
+      title: 'Delete selected?',
+      message: `Are you sure you want to delete all ${entries.length} selected movements?`,
+      confirmLabel: 'Delete',
+      showCancel: true,
+      destructive: true
+    });
+    if (!confirmed) return false;
     deleteMovements(entries);
     flash('apagados');
     return true;
@@ -380,16 +483,17 @@
       return /[";\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
     };
     const sep = ';';
-    const header = ['Data', 'Compra', 'Tipo', 'Categoria', 'Descrição', 'Valor', 'Parcela', 'Grupo'].join(sep);
+    const header = ['Data', 'Compra', 'Status', 'Tipo', 'Categoria', 'Descrição', 'Valor', 'Parcela', 'Grupo'].join(sep);
     const lines = rows.map((row) => {
       const category = catById(row.entry.cat);
       const dateStr = `${String(row.d).padStart(2, '0')}/${String(row.m + 1).padStart(2, '0')}/${row.y}`;
       const purchaseDate = row.entry.purchaseDate || '';
+      const status = resolvedStatus(row.entry);
       const tipo = row.entry.type === 'in' ? 'Entrada' : 'Saída';
       const value = `${row.entry.type === 'in' ? '' : '-'}${row.entry.amount.toFixed(2).replace('.', ',')}`;
       const installment =
         row.entry.installmentIndex && row.entry.installmentCount ? `${row.entry.installmentIndex}/${row.entry.installmentCount}` : '';
-      return [dateStr, purchaseDate, tipo, category ? category.name : row.entry.cat || '', row.entry.desc || '', value, installment, row.entry.installmentGroupId || '']
+      return [dateStr, purchaseDate, status, tipo, category ? category.name : row.entry.cat || '', row.entry.desc || '', value, installment, row.entry.installmentGroupId || '']
         .map(esc)
         .join(sep);
     });
@@ -416,32 +520,43 @@
       try {
         const payload = normalizeBackup(JSON.parse(String(reader.result)) as BackupPayload);
         if (!payload.data) {
-          alert('Arquivo inválido.');
+          showNotice('Invalid file', 'This backup file does not contain Vela ledger data.');
           return;
         }
-        if (confirm(`Importar backup${payload.year ? ` de ${payload.year}` : ''}? Substitui os dados atuais.`)) {
+        askDialog({
+          title: 'Import backup?',
+          message: `Import backup${payload.year ? ` from ${payload.year}` : ''}? This replaces the current data.`,
+          confirmLabel: 'Import',
+          showCancel: true
+        }).then((confirmed) => {
+          if (!confirmed) return;
           if (payload.year) year = payload.year;
           data = payload.data;
           if (payload.settings) settings = { ...settings, ...payload.settings };
           save();
           saveSettings();
           flash('importado');
-        }
+        });
       } catch {
-        alert('Não consegui ler o arquivo.');
+        showNotice('Could not read file', 'Check if the file is a valid Vela backup and try again.');
       } finally {
         input.value = '';
       }
     };
     reader.readAsText(file);
-    sheetOpen = false;
   }
 
-  function resetYear() {
-    if (confirm(`Apagar todos os lançamentos de ${year}? Exporte um backup antes.`)) {
+  async function resetYear() {
+    const confirmed = await askDialog({
+      title: `Reset ${year}?`,
+      message: 'Delete all entries for this year? Export a backup first if you need one.',
+      confirmLabel: 'Reset',
+      showCancel: true,
+      destructive: true
+    });
+    if (confirmed) {
       data = {};
       save();
-      sheetOpen = false;
     }
   }
 </script>
@@ -450,10 +565,10 @@
   <title>Vela</title>
 </svelte:head>
 
-<MeshBackground bind:this={mesh} dimmed={sheetOpen || dashOpen || setOpen || movementOpen || datePickerOpen} {settings} />
+<MeshBackground bind:this={mesh} dimmed={dashOpen || setOpen || movementOpen || datePickerOpen} {settings} />
 
-<div class:dimmed={sheetOpen || dashOpen || setOpen || movementOpen || datePickerOpen} class="app">
-  <FluxHeader {currentMonth} onOpenDashboard={openDashboard} onOpenSettings={() => (setOpen = true)} />
+<div class:dimmed={dashOpen || setOpen || movementOpen || datePickerOpen} class="app flux-shell">
+  <FluxHeader cash={cashSnapshot} />
   <EntryComposer
     bind:amount
     bind:desc
@@ -465,10 +580,10 @@
     onSubmit={addEntry}
     onOpenDatePicker={openDatePicker}
   />
+  <BalanceCards accountBalance={cashSnapshot.realBalance} {investmentBalance} {investmentSeries} {investmentTarget} />
   <MovementsPreview entries={recentMovements} onOpen={() => (movementOpen = true)} onEdit={openMovementEditor} />
+  <BottomNav active="flux" onOpenAeon={openDashboard} onOpenFlux={() => (dashOpen = false)} onOpenSettings={() => (setOpen = true)} />
 </div>
-
-<DataSheet bind:open={sheetOpen} onExportData={exportData} onExportCSV={exportCSV} onImportDataFile={importDataFile} onResetYear={resetYear} />
 
 <MovementsPanel
   bind:open={movementOpen}
@@ -490,7 +605,6 @@
   bind:open={dashOpen}
   bind:scope
   bind:scopeMonth
-  bind:rankMode
   bind:selectedDay
   {year}
   {data}
@@ -500,12 +614,33 @@
   {reserve}
   {trendRows}
   {heatCells}
-  {dayEntries}
-  {yearlyData}
-  {allocation}
   {hero}
+  portfolioContribution={scopedPortfolioContribution}
+  {projections}
+  onOpenSettings={() => (setOpen = true)}
+  onOpenFlux={() => (dashOpen = false)}
 />
 
-<SettingsPanel bind:open={setOpen} {settings} onUpdateSetting={updateSetting} />
+<SettingsPanel
+  bind:open={setOpen}
+  {settings}
+  onUpdateSetting={updateSetting}
+  onExportData={exportData}
+  onExportCSV={exportCSV}
+  onImportDataFile={importDataFile}
+  onResetYear={resetYear}
+/>
+
+<AppDialog
+  bind:open={dialogOpen}
+  title={dialogTitle}
+  message={dialogMessage}
+  confirmLabel={dialogConfirmLabel}
+  cancelLabel={dialogCancelLabel}
+  showCancel={dialogShowCancel}
+  destructive={dialogDestructive}
+  onConfirm={() => resolveDialog(true)}
+  onCancel={() => resolveDialog(false)}
+/>
 
 <div class:show={flashVisible} class="flash">{flashText}</div>

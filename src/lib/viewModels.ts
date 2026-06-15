@@ -53,7 +53,7 @@ export function buildRankItems(current: Aggregate, previous: Aggregate, mode: Ra
 
     return {
       ...item,
-      name: mode === 'cat' ? category?.name || 'Outros' : item.k,
+      name: mode === 'cat' ? category?.name || 'Other' : item.k === 'Outros' ? 'Other' : item.k,
       icon: mode === 'cat' ? category?.icon || '' : '',
       pct: (item.v / total) * 100,
       width: (item.v / max) * 100,

@@ -16,14 +16,14 @@
     const category = catById(entry.cat);
     const installment =
       entry.installmentIndex && entry.installmentCount ? ` · ${entry.installmentIndex}/${entry.installmentCount}` : '';
-    return `${category?.name || 'Outros'} · ${entry._d} ${MONTHS_FULL[entry._m].slice(0, 3).toLowerCase()}${installment}`;
+    return `${category?.name || 'Other'} · ${entry._d} ${MONTHS_FULL[entry._m].slice(0, 3).toLowerCase()}${installment}`;
   }
 </script>
 
 <section class="movements-preview">
   <button class="movements-head" type="button" on:click={onOpen}>
-    <span>Movimentos</span>
-    <svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+    <span>Movements</span>
+    <svg viewBox="0 0 24 24"><path d="M3 7h18" /><path d="M6 12h12" /><path d="M10 17h4" /></svg>
   </button>
 
   {#if entries.length}
@@ -45,6 +45,6 @@
       {/each}
     </div>
   {:else}
-    <button class="movement-empty" type="button" on:click={onOpen}>Nenhum movimento ainda</button>
+    <button class="movement-empty" type="button" on:click={onOpen}>No movements yet</button>
   {/if}
 </section>

@@ -10,8 +10,8 @@
   export let editingEntry: DatedEntry | null = null;
   export let onClose: () => void;
   export let onSave: (entry: DatedEntry, payload: MovementEditPayload) => void;
-  export let onDelete: (entry: DatedEntry, scope: 'single' | 'group') => boolean;
-  export let onDeleteSelected: (entries: DatedEntry[]) => boolean;
+  export let onDelete: (entry: DatedEntry, scope: 'single' | 'group') => boolean | Promise<boolean>;
+  export let onDeleteSelected: (entries: DatedEntry[]) => boolean | Promise<boolean>;
   export let onOpenDatePicker: (label: string, value: string, onSelect: (nextValue: string) => void) => void;
 
   let selectedKeys: string[] = [];
@@ -22,6 +22,7 @@
   let editCat = '';
   let editDate = '';
   let editApplyGroup = false;
+  const currentMonthIndex = new Date().getMonth();
 
   $: if (editingEntry) {
     editAmount = editingEntry.sourceAmount && editingEntry.installmentGroupId ? fmtNum(editingEntry.sourceAmount) : fmtNum(editingEntry.amount);
@@ -46,7 +47,11 @@
     const category = catById(entry.cat);
     const installment =
       entry.installmentIndex && entry.installmentCount ? ` · parcela ${entry.installmentIndex}/${entry.installmentCount}` : '';
-    return `${category?.name || 'Outros'} · ${entry._d} de ${MONTHS_FULL[entry._m].toLowerCase()}${installment}`;
+    return `${category?.name || 'Other'} · ${entry._d} ${MONTHS_FULL[entry._m].slice(0, 3).toLowerCase()}${installment}`;
+  }
+
+  function headingFor(entry: DatedEntry) {
+    return entry._m === currentMonthIndex && entry._y === new Date().getFullYear() ? 'This Month' : MONTHS_FULL[entry._m];
   }
 
   function toggleSelection(entry: DatedEntry) {
@@ -99,15 +104,15 @@
     editingEntry = null;
   }
 
-  function deleteEdit() {
+  async function deleteEdit() {
     if (!editingEntry) return;
-    if (onDelete(editingEntry, editApplyGroup && editingEntry.installmentGroupId ? 'group' : 'single')) {
+    if (await onDelete(editingEntry, editApplyGroup && editingEntry.installmentGroupId ? 'group' : 'single')) {
       editingEntry = null;
     }
   }
 
-  function deleteSelected() {
-    if (onDeleteSelected(selectedEntries)) {
+  async function deleteSelected() {
+    if (await onDeleteSelected(selectedEntries)) {
       selectedKeys = [];
     }
   }
@@ -118,59 +123,62 @@
   <div class="panel-inner">
     {#if editingEntry}
       <div class="panel-top">
-        <div class="panel-title">Editar <span class="yr">movimento</span></div>
-        <button class="icon-btn small-icon" aria-label="Fechar edição" on:click={() => (editingEntry = null)}>
+        <div class="panel-title">Edit <span class="yr">movement</span></div>
+        <button class="icon-btn small-icon" aria-label="Close edit" on:click={() => (editingEntry = null)}>
           <svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12" /></svg>
         </button>
       </div>
       <div class="panel-scroll">
         <div class="movement-edit-card">
           <label>
-            <span>Valor</span>
+            <span>Amount</span>
             <input bind:value={editAmount} inputmode="decimal" />
           </label>
           <label>
-            <span>Descrição</span>
+            <span>Description</span>
             <input bind:value={editDesc} />
           </label>
-          <label>
-            <span>Categoria</span>
-            <select bind:value={editCat}>
-              {#each CATS as category}
-                <option value={category.id}>{category.name}</option>
-              {/each}
-            </select>
-          </label>
           <div class="movement-field">
-            <span>Data</span>
-            <DatePicker bind:value={editDate} label="Data" onOpen={onOpenDatePicker} />
+            <span>Category</span>
+            <div class="edit-category-grid" role="listbox" aria-label="Movement category">
+              {#each CATS as category}
+                <button class:selected={editCat === category.id} type="button" role="option" aria-selected={editCat === category.id} on:click={() => (editCat = category.id)}>
+                  <svg viewBox="0 0 24 24">{@html category.icon}</svg>
+                  <span>{category.name}</span>
+                </button>
+              {/each}
+            </div>
+          </div>
+          <div class="movement-field">
+            <span>Date</span>
+            <DatePicker bind:value={editDate} label="Date" onOpen={onOpenDatePicker} />
           </div>
           {#if editingEntry.installmentGroupId}
             <label class="movement-check">
               <input bind:checked={editApplyGroup} type="checkbox" />
-              <span>Aplicar nas {editingEntry.installmentCount} parcelas</span>
+              <span>Apply to all {editingEntry.installmentCount} installments</span>
             </label>
-            <div class="ms">Compra original: {dateLabel(editingEntry.purchaseDate || editDate)}</div>
+            <div class="ms">Original purchase: {dateLabel(editingEntry.purchaseDate || editDate)}</div>
           {/if}
         </div>
         <div class="movement-actions">
-          <button class="movement-save" type="button" on:click={saveEdit}>Salvar</button>
-          <button class="movement-delete" type="button" on:click={deleteEdit}>Apagar</button>
+          <button class="movement-save" type="button" on:click={saveEdit}>Save</button>
+          <button class="movement-delete" type="button" on:click={deleteEdit}>Delete</button>
         </div>
       </div>
     {:else}
       <div class="panel-top">
         <div class="panel-title">
-          {selectedKeys.length ? `${selectedKeys.length} selecionados` : 'Movimentos'}
+          {selectedKeys.length ? `${selectedKeys.length} selected` : 'Movements'}
         </div>
-        <button class="icon-btn small-icon" aria-label="Fechar lista de movimentos" on:click={closePanel}>
+        <button class="icon-btn small-icon" aria-label="Close movement list" on:click={closePanel}>
           <svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12" /></svg>
         </button>
       </div>
       {#if selectedKeys.length}
         <div class="movement-select-bar">
           <button type="button" on:click={() => (selectedKeys = [])}>Cancelar</button>
-          <button class="danger-text" type="button" on:click={deleteSelected}>Apagar</button>
+          <button class="danger-text" type="button" on:click={deleteSelected}>Delete</button>
         </div>
       {/if}
       <div class="panel-scroll">
@@ -178,7 +186,7 @@
           <div class="movement-full-list">
             {#each entries as entry, index}
               {#if index === 0 || entry._m !== entries[index - 1]._m}
-                <div class="movement-month">{MONTHS_FULL[entry._m]}</div>
+                <div class="movement-month">{headingFor(entry)}</div>
               {/if}
               {@const category = catById(entry.cat)}
               {@const selected = selectedKeys.includes(movementKey(entry))}
@@ -209,7 +217,7 @@
             {/each}
           </div>
         {:else}
-          <div class="empty">Nada lançado ainda.</div>
+          <div class="empty">No movements yet.</div>
         {/if}
       </div>
     {/if}
