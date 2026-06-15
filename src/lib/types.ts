@@ -47,6 +47,7 @@ export interface Settings {
   essenciais: number;
   desejos: number;
   investimentos: number;
+  accentColor: string;
   dotSpacing: number;
   dotSize: number;
   dotOpacity: number;

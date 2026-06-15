@@ -24,6 +24,7 @@ export const DEFAULT_SETTINGS: Settings = {
   essenciais: 50,
   desejos: 20,
   investimentos: 30,
+  accentColor: '#247E5C',
   dotSpacing: 22,
   dotSize: 1.6,
   dotOpacity: 0.34,

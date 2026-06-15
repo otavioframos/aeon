@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onDestroy, onMount } from 'svelte';
+  import { hexToRgb, normalizeHex } from './theme';
   import type { EntryType, Settings } from './types';
 
   export let settings: Settings;
@@ -11,7 +12,7 @@
   };
 
   const SAGE = { r: 134, g: 157, b: 148 };
-  const GREEN = { r: 36, g: 126, b: 92 };
+  const DEFAULT_ACCENT = { r: 36, g: 126, b: 92 };
   const RED = { r: 163, g: 6, b: 6 };
   const BAYER_4 = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
   const GRID = {
@@ -39,9 +40,18 @@
   let waves: { x: number; y: number; t: number; type: EntryType }[] = [];
   let pointer = { x: -9999, y: -9999, active: false };
   let fieldStep = 10;
+  let accent = DEFAULT_ACCENT;
+  let activeAccent = '';
 
   $: if (ctx) {
+    const nextAccent = normalizeHex(settings.accentColor || '#247E5C');
+    const accentChanged = activeAccent && activeAccent !== nextAccent;
     syncGrid();
+    if (accentChanged && shaderMount && !reduceMotion) {
+      shaderMount.dispose();
+      shaderMount = null;
+      mountShader();
+    }
     if (reduceMotion) drawFrame();
   }
 
@@ -57,6 +67,8 @@
     GRID.waveIntensity = settings.waveIntensity;
     GRID.waveRadius = settings.waveRadius;
     GRID.noise = settings.noise;
+    activeAccent = normalizeHex(settings.accentColor || '#247E5C');
+    accent = hexToRgb(activeAccent);
   }
 
   function initMesh() {
@@ -111,9 +123,9 @@
       ctx.fillStyle = '#0c0f0e';
       ctx.fillRect(0, 0, gw, gh);
       const bg = ctx.createRadialGradient(gw * 1.24, -gh * 0.08, 0, gw * 1.24, -gh * 0.08, Math.max(gw, gh) * 1.35);
-      bg.addColorStop(0, 'rgba(36,126,92,0.12)');
-      bg.addColorStop(0.42, 'rgba(24,70,53,0.08)');
-      bg.addColorStop(0.74, 'rgba(18,43,34,0.05)');
+      bg.addColorStop(0, `rgba(${accent.r},${accent.g},${accent.b},0.12)`);
+      bg.addColorStop(0.42, `rgba(${accent.r},${accent.g},${accent.b},0.08)`);
+      bg.addColorStop(0.74, `rgba(${accent.r},${accent.g},${accent.b},0.05)`);
       bg.addColorStop(1, 'rgba(12,15,14,0)');
       ctx.fillStyle = bg;
       ctx.fillRect(0, 0, gw, gh);
@@ -170,7 +182,7 @@
 
         if (value < gate) continue;
 
-        const tintTarget = redTint > greenTint ? RED : GREEN;
+        const tintTarget = redTint > greenTint ? RED : accent;
         const tintAmount = Math.max(redTint, greenTint) * 0.72;
         const color = mixColor(SAGE, tintTarget, tintAmount);
         const op = Math.min(0.58, GRID.dotOpacity * 0.36 + value * 0.16 + waveGlow * 0.18);
@@ -206,7 +218,7 @@
         ditheringFragmentShader,
         {
           u_colorBack: getShaderColorFromString('rgba(0, 0, 0, 0)'),
-          u_colorFront: getShaderColorFromString('rgba(36, 126, 92, 0.24)'),
+          u_colorFront: getShaderColorFromString(`rgba(${accent.r}, ${accent.g}, ${accent.b}, 0.24)`),
           u_shape: DitheringShapes.simplex,
           u_type: DitheringTypes['4x4'],
           u_pxSize: 2,
@@ -320,9 +332,9 @@
     background:
       radial-gradient(
         ellipse at 130% -8%,
-        rgba(36, 126, 92, 0) 0%,
-        rgba(24, 70, 53, 0.16) 50%,
-        rgba(18, 43, 34, 0.24) 75%,
+        rgba(var(--accent-rgb), 0) 0%,
+        rgba(var(--accent-rgb), 0.16) 50%,
+        rgba(var(--accent-rgb), 0.2) 75%,
         rgba(12, 15, 14, 0.32) 100%
       ),
       #0c0f0e;
@@ -344,7 +356,7 @@
 
   .mesh-light {
     background:
-      radial-gradient(ellipse at 112% -8%, rgba(36, 126, 92, 0.07), transparent 58%),
+      radial-gradient(ellipse at 112% -8%, rgba(var(--accent-rgb), 0.07), transparent 58%),
       linear-gradient(142deg, rgba(217, 217, 217, 0.025) 12%, rgba(115, 115, 115, 0.014) 76%);
     mix-blend-mode: screen;
   }

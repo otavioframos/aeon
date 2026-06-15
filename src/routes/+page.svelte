@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { browser } from '$app/environment';
   import { onMount, tick } from 'svelte';
   import '../app.css';
   import AnalyticsPanel from '$lib/components/AnalyticsPanel.svelte';
@@ -16,6 +17,7 @@
   import { catById, isPortfolioCategory } from '$lib/categories';
   import { DEFAULT_SETTINGS, aggregate, entriesIn, key, monthAgg, parseAmount } from '$lib/finance';
   import { listDataYears, loadData, loadSettings, normalizeBackup, saveData, saveSettings as persistSettings } from '$lib/storage';
+  import { themeVars } from '$lib/theme';
   import { addMonthsClamped, buildTransactionEntries, datePartsFromISO, splitAmount, statusForDateParts, todayISO } from '$lib/transactions';
   import {
     allocationModel,
@@ -125,6 +127,7 @@
   $: projections = projectionMonths(data, year, settings);
   $: allocation = allocationModel(scopedData);
   $: hero = heroModel(scopedData, scope, year, scopeMonth, settings);
+  $: if (browser) applyTheme(settings.accentColor);
 
   onMount(() => {
     data = loadData(year);
@@ -457,9 +460,15 @@
     writeMutationYears(byYear);
   }
 
-  function updateSetting(keyName: keyof Settings, value: number) {
-    settings = { ...settings, [keyName]: value };
+  function updateSetting(keyName: keyof Settings, value: Settings[keyof Settings]) {
+    settings = { ...settings, [keyName]: value } as Settings;
     saveSettings();
+  }
+
+  function applyTheme(accentColor: string) {
+    Object.entries(themeVars(accentColor)).forEach(([keyName, value]) => {
+      document.documentElement.style.setProperty(keyName, value);
+    });
   }
 
   function openDashboard() {
