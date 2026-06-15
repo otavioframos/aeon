@@ -18,5 +18,8 @@
     "svelte-check": "latest",
     "typescript": "latest",
     "vite": "latest"
+  },
+  "dependencies": {
+    "@paper-design/shaders": "^0.0.76"
   }
 }
