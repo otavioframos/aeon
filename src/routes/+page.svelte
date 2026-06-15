@@ -3,6 +3,7 @@
   import '../app.css';
   import AnalyticsPanel from '$lib/components/AnalyticsPanel.svelte';
   import DataSheet from '$lib/components/DataSheet.svelte';
+  import DatePickerSheet from '$lib/components/DatePickerSheet.svelte';
   import EntryComposer from '$lib/components/EntryComposer.svelte';
   import FluxHeader from '$lib/components/FluxHeader.svelte';
   import MovementsPanel from '$lib/components/MovementsPanel.svelte';
@@ -61,6 +62,10 @@
   let setOpen = false;
   let movementOpen = false;
   let editingMovement: DatedEntry | null = null;
+  let datePickerOpen = false;
+  let datePickerLabel = 'Data';
+  let datePickerValue = todayISO();
+  let commitPickedDate: ((value: string) => void) | null = null;
   let flashText = 'salvo';
   let flashVisible = false;
   let flashTimer: ReturnType<typeof setTimeout>;
@@ -127,6 +132,19 @@
     } catch {
       // localStorage can be unavailable in strict browser modes; the app remains usable for the session.
     }
+  }
+
+  function openDatePicker(label: string, value: string, onSelect: (nextValue: string) => void) {
+    datePickerLabel = label;
+    datePickerValue = value || todayISO();
+    commitPickedDate = onSelect;
+    datePickerOpen = true;
+  }
+
+  function pickDate(value: string) {
+    datePickerValue = value;
+    commitPickedDate?.(value);
+    datePickerOpen = false;
   }
 
   function addEntry() {
@@ -432,9 +450,9 @@
   <title>Vela</title>
 </svelte:head>
 
-<MeshBackground bind:this={mesh} dimmed={sheetOpen || dashOpen || setOpen || movementOpen} {settings} />
+<MeshBackground bind:this={mesh} dimmed={sheetOpen || dashOpen || setOpen || movementOpen || datePickerOpen} {settings} />
 
-<div class:dimmed={sheetOpen || dashOpen || setOpen || movementOpen} class="app">
+<div class:dimmed={sheetOpen || dashOpen || setOpen || movementOpen || datePickerOpen} class="app">
   <FluxHeader {currentMonth} onOpenDashboard={openDashboard} onOpenSettings={() => (setOpen = true)} />
   <EntryComposer
     bind:amount
@@ -445,6 +463,7 @@
     bind:controlOpen
     bind:amountInput
     onSubmit={addEntry}
+    onOpenDatePicker={openDatePicker}
   />
   <MovementsPreview entries={recentMovements} onOpen={() => (movementOpen = true)} onEdit={openMovementEditor} />
 </div>
@@ -462,7 +481,10 @@
   onSave={saveMovementEdit}
   onDelete={deleteMovement}
   onDeleteSelected={deleteSelectedMovements}
+  onOpenDatePicker={openDatePicker}
 />
+
+<DatePickerSheet bind:open={datePickerOpen} label={datePickerLabel} value={datePickerValue} onPick={pickDate} />
 
 <AnalyticsPanel
   bind:open={dashOpen}

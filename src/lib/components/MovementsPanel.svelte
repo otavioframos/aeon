@@ -12,6 +12,7 @@
   export let onSave: (entry: DatedEntry, payload: MovementEditPayload) => void;
   export let onDelete: (entry: DatedEntry, scope: 'single' | 'group') => boolean;
   export let onDeleteSelected: (entries: DatedEntry[]) => boolean;
+  export let onOpenDatePicker: (label: string, value: string, onSelect: (nextValue: string) => void) => void;
 
   let selectedKeys: string[] = [];
   let pressTimer: ReturnType<typeof setTimeout> | undefined;
@@ -142,7 +143,7 @@
           </label>
           <div class="movement-field">
             <span>Data</span>
-            <DatePicker bind:value={editDate} label="Data" />
+            <DatePicker bind:value={editDate} label="Data" onOpen={onOpenDatePicker} />
           </div>
           {#if editingEntry.installmentGroupId}
             <label class="movement-check">

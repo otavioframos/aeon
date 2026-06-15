@@ -12,6 +12,7 @@
   export let controlOpen = false;
   export let amountInput: HTMLInputElement | undefined = undefined;
   export let onSubmit: () => void;
+  export let onOpenDatePicker: (label: string, value: string, onSelect: (nextValue: string) => void) => void;
 
   const installmentOptions = [1, 2, 3, 6, 12];
 
@@ -70,7 +71,7 @@
             </div>
           </div>
 
-          <DatePicker bind:value={purchaseDate} label="Compra" />
+          <DatePicker bind:value={purchaseDate} label="Compra" onOpen={onOpenDatePicker} />
 
           {#if installmentCount > 1 && installmentAmount}
             <div class="installment-note">{installmentCount}x de R$ {fmtNum(installmentAmount)}</div>

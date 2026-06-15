@@ -527,25 +527,23 @@ button {
 
 .date-picker-sheet {
   position: fixed;
-  left: 18px;
-  right: 18px;
+  left: 50%;
   bottom: calc(18px + env(safe-area-inset-bottom));
   z-index: 71;
-  max-width: 354px;
-  margin: 0 auto;
+  width: min(calc(100vw - 24px), 354px);
   padding: var(--space-3);
   background: var(--color-bg-raised);
   border: var(--stroke-default) solid var(--line);
   border-radius: var(--radius-panel);
   box-shadow: 0 28px 64px -24px rgba(0, 0, 0, 0.9);
-  transform: translateY(calc(100% + 40px)) scale(0.98);
+  transform: translate(-50%, calc(100% + 40px)) scale(0.98);
   opacity: 0;
   pointer-events: none;
   transition: transform var(--motion-panel) var(--ease-emphasized), opacity var(--motion-base) var(--ease-standard);
 }
 
 .date-picker-sheet.open {
-  transform: translateY(0) scale(1);
+  transform: translate(-50%, 0) scale(1);
   opacity: 1;
   pointer-events: auto;
 }
@@ -622,7 +620,7 @@ button {
 .date-grid button,
 .date-blank {
   aspect-ratio: 1;
-  min-height: 44px;
+  min-height: 0;
   border-radius: var(--radius-card);
 }
 
