@@ -1,15 +1,34 @@
 <script lang="ts">
   import { CATS, catById } from '$lib/categories';
+  import { fmtNum, parseAmount } from '$lib/finance';
+  import { dateLabel, splitAmount } from '$lib/transactions';
 
   export let amount = '';
   export let desc = '';
   export let selCat = '';
+  export let purchaseDate = '';
+  export let installmentCount = 1;
   export let controlOpen = false;
   export let amountInput: HTMLInputElement | undefined = undefined;
   export let onSubmit: () => void;
 
+  const installmentOptions = [1, 2, 3, 6, 12];
+
   $: selectedCategory = catById(selCat);
   $: controlLabel = selectedCategory?.name || 'Categoria e descrição';
+  $: isIncome = selCat === 'renda';
+  $: isContribution = !isIncome && selectedCategory?.group === 'Investimentos';
+  $: parsedAmount = parseAmount(amount);
+  $: installmentAmount =
+    Number.isNaN(parsedAmount) || installmentCount <= 1 ? 0 : splitAmount(Math.abs(parsedAmount), installmentCount)[0];
+  $: purchaseDateText = dateLabel(purchaseDate);
+  $: submitLabel = isIncome
+    ? 'Lançar renda'
+    : installmentCount > 1
+      ? `Lançar ${installmentCount} parcelas`
+      : isContribution
+        ? 'Lançar contribuição'
+        : 'Lançar despesa';
 </script>
 
 <div class="center">
@@ -39,13 +58,34 @@
             {/each}
           </div>
           <input class="desc-input" bind:value={desc} type="text" placeholder="Descrição (opcional)" />
+
+          <div class="composer-row">
+            <div class="composer-title">Parcelas</div>
+            <div class="installment-options" role="group" aria-label="Parcelas">
+              {#each installmentOptions as option}
+                <button class:active={installmentCount === option} type="button" on:click={() => (installmentCount = option)}>
+                  {option}
+                </button>
+              {/each}
+            </div>
+          </div>
+
+          <label class="date-field">
+            <span>Compra: {purchaseDateText}</span>
+            <svg viewBox="0 0 24 24"><path d="M8 2v4M16 2v4M3 10h18" /><path d="M5 5h14a2 2 0 012 2v12a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2z" /></svg>
+            <input bind:value={purchaseDate} type="date" />
+          </label>
+
+          {#if installmentCount > 1 && installmentAmount}
+            <div class="installment-note">{installmentCount}x de R$ {fmtNum(installmentAmount)}</div>
+          {/if}
         </div>
       </div>
     </div>
 
     <button class="submit" on:click={onSubmit}>
       <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></svg>
-      <span>Lançar</span>
+      <span>{submitLabel}</span>
     </button>
   </div>
 </div>

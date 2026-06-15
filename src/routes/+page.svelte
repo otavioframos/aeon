@@ -8,8 +8,9 @@
   import SettingsPanel from '$lib/components/SettingsPanel.svelte';
   import MeshBackground from '$lib/MeshBackground.svelte';
   import { catById } from '$lib/categories';
-  import { DEFAULT_SETTINGS, aggregate, entriesIn, key, monthAgg, parseAmount, uid } from '$lib/finance';
+  import { DEFAULT_SETTINGS, aggregate, entriesIn, monthAgg, parseAmount } from '$lib/finance';
   import { loadData, loadSettings, normalizeBackup, saveData, saveSettings as persistSettings } from '$lib/storage';
+  import { buildTransactionEntries, todayISO } from '$lib/transactions';
   import {
     allocationModel,
     buildRankItems,
@@ -45,6 +46,8 @@
   let amount = '';
   let desc = '';
   let selCat = '';
+  let purchaseDate = todayISO();
+  let installmentCount = 1;
   let scope: Scope = 'month';
   let scopeMonth = new Date().getMonth();
   let rankMode: RankMode = 'cat';
@@ -124,37 +127,50 @@
       return;
     }
 
-    const today = new Date();
-    const y = today.getFullYear();
-    const m = today.getMonth();
-    const d = today.getDate();
-    if (y !== year) {
-      year = y;
-      data = loadData(year);
-    }
-
-    const type: EntryType = value < 0 ? 'out' : 'in';
-    const entryKey = key(y, m, d);
-    const next = { ...data };
-    next[entryKey] = [
-      ...(next[entryKey] || []),
-      {
-        id: uid(),
-        amount: Math.abs(value),
-        type,
-        cat: selCat,
-        desc: desc.trim()
-      }
-    ];
-    data = next;
-    save();
+    const type: EntryType = selCat === 'renda' ? 'in' : 'out';
+    const generated = buildTransactionEntries({
+      totalAmount: Math.abs(value),
+      type,
+      cat: selCat,
+      desc: desc.trim(),
+      purchaseDate: purchaseDate || todayISO(),
+      installmentCount
+    });
+    commitEntries(generated);
     mesh?.triggerWave(type);
 
     amount = '';
     desc = '';
     selCat = '';
+    installmentCount = 1;
+    purchaseDate = todayISO();
     controlOpen = false;
     amountInput?.focus();
+  }
+
+  function commitEntries(generated: ReturnType<typeof buildTransactionEntries>) {
+    const byYear = new Map<number, LedgerData>();
+    generated.forEach((item) => {
+      if (!byYear.has(item.year)) {
+        byYear.set(item.year, item.year === year ? { ...data } : loadData(item.year));
+      }
+      const yearData = byYear.get(item.year);
+      if (!yearData) return;
+        yearData[item.entryKey] = [...(yearData[item.entryKey] || []), item.entry];
+    });
+
+    try {
+      byYear.forEach((yearData, itemYear) => saveData(itemYear, yearData));
+      if (byYear.has(year)) {
+        data = byYear.get(year) || data;
+      } else if (generated[0]) {
+        year = generated[0].year;
+        data = byYear.get(year) || loadData(year);
+      }
+      flash(generated.length > 1 ? `${generated.length} parcelas` : 'salvo');
+    } catch {
+      alert('Salvamento bloqueado aqui. Baixe o arquivo e abra no seu navegador para salvar de verdade.');
+    }
   }
 
   function updateSetting(keyName: keyof Settings, value: number) {
@@ -183,13 +199,18 @@
       return /[";\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
     };
     const sep = ';';
-    const header = ['Data', 'Tipo', 'Categoria', 'Descrição', 'Valor'].join(sep);
+    const header = ['Data', 'Compra', 'Tipo', 'Categoria', 'Descrição', 'Valor', 'Parcela', 'Grupo'].join(sep);
     const lines = rows.map((row) => {
       const category = catById(row.entry.cat);
       const dateStr = `${String(row.d).padStart(2, '0')}/${String(row.m + 1).padStart(2, '0')}/${row.y}`;
+      const purchaseDate = row.entry.purchaseDate || '';
       const tipo = row.entry.type === 'in' ? 'Entrada' : 'Saída';
       const value = `${row.entry.type === 'in' ? '' : '-'}${row.entry.amount.toFixed(2).replace('.', ',')}`;
-      return [dateStr, tipo, category ? category.name : row.entry.cat || '', row.entry.desc || '', value].map(esc).join(sep);
+      const installment =
+        row.entry.installmentIndex && row.entry.installmentCount ? `${row.entry.installmentIndex}/${row.entry.installmentCount}` : '';
+      return [dateStr, purchaseDate, tipo, category ? category.name : row.entry.cat || '', row.entry.desc || '', value, installment, row.entry.installmentGroupId || '']
+        .map(esc)
+        .join(sep);
     });
     downloadFile(`fluxo_${year}.csv`, `\uFEFF${[header].concat(lines).join('\r\n')}`, 'text/csv;charset=utf-8');
   }
@@ -252,7 +273,16 @@
 
 <div class:dimmed={sheetOpen || dashOpen || setOpen} class="app">
   <FluxHeader {currentMonth} onOpenDashboard={openDashboard} onOpenSettings={() => (setOpen = true)} />
-  <EntryComposer bind:amount bind:desc bind:selCat bind:controlOpen bind:amountInput onSubmit={addEntry} />
+  <EntryComposer
+    bind:amount
+    bind:desc
+    bind:selCat
+    bind:purchaseDate
+    bind:installmentCount
+    bind:controlOpen
+    bind:amountInput
+    onSubmit={addEntry}
+  />
 </div>
 
 <DataSheet bind:open={sheetOpen} onExportData={exportData} onExportCSV={exportCSV} onImportDataFile={importDataFile} onResetYear={resetYear} />

@@ -16,6 +16,11 @@ export interface Entry {
   type: EntryType;
   cat: string;
   desc: string;
+  purchaseDate?: string;
+  sourceAmount?: number;
+  installmentGroupId?: string;
+  installmentIndex?: number;
+  installmentCount?: number;
 }
 
 export interface DatedEntry extends Entry {
