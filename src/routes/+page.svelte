@@ -1,6 +1,7 @@
 <script lang="ts">
   import { browser } from '$app/environment';
-  import { onMount, tick } from 'svelte';
+  import { base } from '$app/paths';
+  import { onMount } from 'svelte';
   import '../app.css';
   import AnalyticsPanel from '$lib/components/AnalyticsPanel.svelte';
   import AppDialog from '$lib/components/AppDialog.svelte';
@@ -12,6 +13,7 @@
   import MovementsPanel from '$lib/components/MovementsPanel.svelte';
   import MovementsPreview from '$lib/components/MovementsPreview.svelte';
   import SettingsPanel from '$lib/components/SettingsPanel.svelte';
+  import VelaSplash from '$lib/components/VelaSplash.svelte';
   import MeshBackground from '$lib/MeshBackground.svelte';
   import { currentMonthCash, projectionMonths, resolvedStatus } from '$lib/cashModel';
   import { catById, isPortfolioCategory } from '$lib/categories';
@@ -19,6 +21,7 @@
   import { listDataYears, loadData, loadSettings, normalizeBackup, saveData, saveSettings as persistSettings } from '$lib/storage';
   import { themeVars } from '$lib/theme';
   import { addMonthsClamped, buildTransactionEntries, datePartsFromISO, splitAmount, statusForDateParts, todayISO } from '$lib/transactions';
+  import { syncVelaWidget } from '$lib/nativeWidget';
   import {
     allocationModel,
     buildRankItems,
@@ -85,6 +88,11 @@
   let flashTimer: ReturnType<typeof setTimeout>;
   let amountInput: HTMLInputElement | undefined;
   let mesh: MeshHandle;
+  let nativeBackListener: { remove: () => Promise<void> } | null = null;
+  let isNativeShell = false;
+  let showApkBanner = false;
+  const apkHref = `${base}/vela.apk`;
+  const apkBannerKey = 'vela-apk-banner-dismissed';
 
   let cashSnapshot: CashSnapshot = currentMonthCash(data, settings);
   let scopedData: Aggregate = aggregate([]);
@@ -132,8 +140,25 @@
   onMount(() => {
     data = loadData(year);
     settings = loadSettings();
-    tick().then(() => amountInput?.focus());
+    void initializeShell();
+
+    return () => {
+      void nativeBackListener?.remove();
+    };
   });
+
+  async function initializeShell() {
+    isNativeShell = await setupNativeShell();
+    if (!isNativeShell && browser && localStorage.getItem(apkBannerKey) !== '1') {
+      showApkBanner = true;
+    }
+    syncWidget();
+  }
+
+  function dismissApkBanner() {
+    showApkBanner = false;
+    if (browser) localStorage.setItem(apkBannerKey, '1');
+  }
 
   function flash(message = 'salvo') {
     flashText = message;
@@ -147,6 +172,7 @@
   function save() {
     try {
       saveData(year, data);
+      syncWidget();
       flash();
     } catch {
       showNotice('Storage blocked', 'Open the app in your browser or export a backup to keep this data safely.');
@@ -156,9 +182,14 @@
   function saveSettings() {
     try {
       persistSettings(settings);
+      syncWidget();
     } catch {
       // localStorage can be unavailable in strict browser modes; the app remains usable for the session.
     }
+  }
+
+  function syncWidget() {
+    syncVelaWidget(data, settings);
   }
 
   function openDatePicker(label: string, value: string, onSelect: (nextValue: string) => void) {
@@ -202,6 +233,62 @@
 
   function showNotice(title: string, message: string) {
     void askDialog({ title, message, confirmLabel: 'OK' });
+  }
+
+  async function setupNativeShell() {
+    try {
+      const [{ Capacitor }, { App }, { StatusBar, Style }] = await Promise.all([
+        import('@capacitor/core'),
+        import('@capacitor/app'),
+        import('@capacitor/status-bar')
+      ]);
+
+      if (!Capacitor.isNativePlatform()) return false;
+
+      document.documentElement.classList.add('native-shell');
+      document.body.classList.add('native-shell');
+
+      await Promise.allSettled([
+        StatusBar.setStyle({ style: Style.Dark }),
+        StatusBar.setBackgroundColor({ color: '#00000000' }),
+        StatusBar.setOverlaysWebView({ overlay: true }),
+        StatusBar.show()
+      ]);
+
+      nativeBackListener = await App.addListener('backButton', () => {
+        if (dialogOpen) {
+          resolveDialog(false);
+          return;
+        }
+        if (datePickerOpen) {
+          datePickerOpen = false;
+          return;
+        }
+        if (setOpen) {
+          setOpen = false;
+          return;
+        }
+        if (movementOpen) {
+          movementOpen = false;
+          editingMovement = null;
+          return;
+        }
+        if (controlOpen) {
+          controlOpen = false;
+          return;
+        }
+        if (dashOpen) {
+          dashOpen = false;
+          return;
+        }
+
+        void App.minimizeApp();
+      });
+      return true;
+    } catch {
+      // Native plugins are unavailable in the browser build.
+      return false;
+    }
   }
 
   function addEntry() {
@@ -252,6 +339,7 @@
         year = generated[0].year;
         data = byYear.get(year) || loadData(year);
       }
+      syncWidget();
       flash(generated.length > 1 ? `${generated.length} parcelas` : 'salvo');
     } catch {
       showNotice('Storage blocked', 'Open the app in your browser or export a backup to keep this data safely.');
@@ -574,10 +662,23 @@
   <title>Vela</title>
 </svelte:head>
 
+<VelaSplash />
 <MeshBackground bind:this={mesh} dimmed={dashOpen || setOpen || movementOpen || datePickerOpen} {settings} />
 
 <div class:dimmed={dashOpen || setOpen || movementOpen || datePickerOpen} class="app flux-shell">
   <FluxHeader cash={cashSnapshot} />
+  {#if showApkBanner}
+    <section class="apk-banner" aria-label="Download Vela APK">
+      <div>
+        <strong>Install Vela APK</strong>
+        <span>Smoother phone experience and homescreen widget.</span>
+      </div>
+      <a href={apkHref} download="vela.apk">Download</a>
+      <button type="button" aria-label="Dismiss APK banner" on:click={dismissApkBanner}>
+        <svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12" /></svg>
+      </button>
+    </section>
+  {/if}
   <EntryComposer
     bind:amount
     bind:desc
@@ -638,6 +739,8 @@
   onExportCSV={exportCSV}
   onImportDataFile={importDataFile}
   onResetYear={resetYear}
+  {apkHref}
+  showApkDownload={!isNativeShell}
 />
 
 <AppDialog

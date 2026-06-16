@@ -12,6 +12,8 @@
   export let onExportCSV: () => void;
   export let onImportDataFile: (event: Event) => void;
   export let onResetYear: () => void;
+  export let apkHref = '/vela.apk';
+  export let showApkDownload = true;
 
   let fileInput: HTMLInputElement | undefined;
 
@@ -132,6 +134,24 @@
         </summary>
 
         <div class="settings-section-body">
+          {#if showApkDownload}
+            <section class="settings-card settings-apk-card">
+              <div class="settings-card-head">
+                <div>
+                  <h2>Android APK</h2>
+                  <p>Install Vela locally for the smoothest mobile shell and homescreen widget.</p>
+                </div>
+              </div>
+              <a class="settings-apk-download" href={apkHref} download="vela.apk">
+                <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><path d="M7 10l5 5 5-5" /><path d="M12 15V3" /></svg>
+                <span>
+                  <strong>Download APK</strong>
+                  <small>Includes native widget</small>
+                </span>
+              </a>
+            </section>
+          {/if}
+
           <section class="settings-card">
             <div class="settings-card-head">
               <div>

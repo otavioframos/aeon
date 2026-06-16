@@ -99,9 +99,11 @@ html,
 body {
   height: 100%;
   overflow: hidden;
+  background: var(--bg);
 }
 
 body {
+  min-height: 100dvh;
   font-family: var(--sans);
   background:
     radial-gradient(
@@ -137,6 +139,112 @@ button {
   pointer-events: none;
 }
 
+.vela-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse at 20% 28%, rgba(var(--accent-rgb), 0.22), transparent 42%),
+    radial-gradient(ellipse at 78% 74%, rgba(134, 157, 148, 0.16), transparent 46%),
+    linear-gradient(145deg, #0c0f0e 0%, #07100d 56%, #020403 100%);
+}
+
+.splash-field,
+.splash-ripple {
+  position: absolute;
+  inset: -12%;
+}
+
+.splash-field {
+  opacity: 0.58;
+  background:
+    repeating-radial-gradient(circle at 50% 50%, rgba(217, 217, 217, 0.18) 0 1px, transparent 1px 5px),
+    radial-gradient(ellipse at 56% 34%, rgba(var(--accent-rgb), 0.24), transparent 52%);
+  mask-image: radial-gradient(ellipse at center, #000 0%, rgba(0, 0, 0, 0.9) 36%, transparent 76%);
+  transform: rotate(-8deg) scale(1.08);
+}
+
+.splash-ripple {
+  border-radius: 50%;
+  border: 1px solid rgba(134, 157, 148, 0.42);
+  box-shadow:
+    0 0 0 20px rgba(var(--accent-rgb), 0.045),
+    0 0 0 54px rgba(var(--accent-rgb), 0.026),
+    0 0 72px rgba(var(--accent-rgb), 0.22);
+  opacity: 0;
+  transform: scale(0.34);
+}
+
+.vela-splash img {
+  width: min(96px, 28vw);
+  height: auto;
+  z-index: 1;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 0 22px rgba(134, 157, 148, 0.34));
+  opacity: 0;
+  transform: translateY(8px) scale(0.92);
+}
+
+.vela-splash.playing {
+  animation: splash-exit 1380ms var(--ease-emphasized) forwards;
+}
+
+.vela-splash.playing .splash-ripple {
+  animation: splash-ripple 1280ms var(--ease-emphasized) forwards;
+}
+
+.vela-splash.playing img {
+  animation: splash-mark 1180ms var(--ease-emphasized) forwards;
+}
+
+@keyframes splash-ripple {
+  0% {
+    opacity: 0;
+    transform: scale(0.34);
+  }
+
+  22% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+    transform: scale(1.18);
+  }
+}
+
+@keyframes splash-mark {
+  0% {
+    opacity: 0;
+    transform: translateY(8px) scale(0.92);
+  }
+
+  36% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateY(-4px) scale(1.03);
+  }
+}
+
+@keyframes splash-exit {
+  0%,
+  72% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+  }
+}
+
 .app {
   position: relative;
   z-index: 2;
@@ -146,12 +254,83 @@ button {
   flex-direction: column;
   max-width: 390px;
   margin: 0 auto;
-  padding: var(--space-page-x);
+  padding: max(var(--space-page-x), env(safe-area-inset-top)) var(--space-page-x) var(--space-page-x);
   transition: filter var(--motion-base) var(--ease-standard);
 }
 
 .app.dimmed {
   filter: blur(4px);
+}
+
+.apk-banner {
+  width: 100%;
+  margin-top: var(--space-3);
+  padding: 10px;
+  border: var(--stroke-default) solid var(--color-stroke);
+  border-radius: var(--radius-card);
+  background: var(--bg-card-strong);
+  backdrop-filter: blur(var(--blur-overlay));
+  -webkit-backdrop-filter: blur(var(--blur-overlay));
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 32px;
+  align-items: center;
+  gap: 8px;
+}
+
+.apk-banner div {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.apk-banner strong {
+  color: var(--color-text-strong);
+  font-family: var(--font-accent);
+  font-size: 18px;
+  font-weight: 400;
+  line-height: 1;
+}
+
+.apk-banner span {
+  color: var(--color-text-muted);
+  font-size: 10px;
+  line-height: 1.2;
+}
+
+.apk-banner a {
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: var(--radius-pill);
+  background: var(--color-cta);
+  color: var(--color-text-inverse);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.apk-banner button {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-card);
+  display: grid;
+  place-items: center;
+  color: var(--color-text);
+}
+
+.apk-banner button:active {
+  background: var(--color-input-fill);
+}
+
+.apk-banner svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
 }
 
 .topbar {
@@ -2019,7 +2198,7 @@ input[type="file"] {
   width: 100%;
   height: 100dvh;
   margin: 0 auto;
-  padding: 24px 18px calc(110px + env(safe-area-inset-bottom));
+  padding: max(24px, calc(14px + env(safe-area-inset-top))) 18px calc(118px + env(safe-area-inset-bottom));
   overflow-y: auto;
   scrollbar-width: none;
 }
@@ -2656,44 +2835,104 @@ input[type="file"] {
   left: 50%;
   bottom: calc(24px + env(safe-area-inset-bottom));
   transform: translateX(-50%);
-  min-height: 48px;
-  padding: 8px 18px;
+  min-height: 52px;
+  padding: 8px 16px;
   border-radius: var(--radius-pill);
-  background: var(--color-stroke);
+  background:
+    linear-gradient(145deg, rgba(217, 217, 217, 0.09), rgba(115, 115, 115, 0.06)),
+    rgba(47, 55, 52, 0.82);
+  border: var(--stroke-thin) solid rgba(var(--cta-rgb), 0.26);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow:
+    0 18px 46px rgba(0, 0, 0, 0.42),
+    inset 0 1px 0 rgba(217, 217, 217, 0.06);
   display: flex;
   align-items: center;
-  gap: 22px;
+  gap: 18px;
+  isolation: isolate;
+}
+
+.bottom-nav::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: calc(-28px - env(safe-area-inset-bottom));
+  z-index: -2;
+  width: min(100vw, 430px);
+  height: calc(124px + env(safe-area-inset-bottom));
+  background: linear-gradient(0deg, rgba(0, 0, 0, 0.56) 0%, rgba(0, 0, 0, 0.32) 44%, transparent 100%);
+  filter: blur(2px);
+  transform: translateX(-50%);
+  pointer-events: none;
 }
 
 .bottom-nav button {
   position: relative;
-  width: 24px;
-  height: 30px;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-pill);
   display: grid;
   place-items: center;
   color: var(--color-text);
+  transition:
+    color var(--motion-base) var(--ease-standard),
+    background var(--motion-base) var(--ease-standard),
+    box-shadow var(--motion-base) var(--ease-standard),
+    transform var(--motion-base) var(--ease-emphasized);
 }
 
 .bottom-nav svg {
-  width: 24px;
-  height: 24px;
+  width: 23px;
+  height: 23px;
   fill: none;
   stroke: currentColor;
-  stroke-width: 1.45;
+  stroke-width: 1.5;
   stroke-linecap: round;
   stroke-linejoin: round;
+  transition:
+    stroke-width var(--motion-base) var(--ease-standard),
+    transform var(--motion-base) var(--ease-emphasized);
+}
+
+.bottom-nav button.active {
+  color: var(--color-text-inverse-deep);
+  background: var(--color-cta);
+  box-shadow:
+    0 0 0 1px rgba(var(--cta-rgb), 0.36),
+    0 8px 22px rgba(var(--accent-rgb), 0.24);
+  transform: translateY(-2px);
+}
+
+.bottom-nav button.active svg {
+  stroke-width: 1.85;
+  transform: scale(0.94);
 }
 
 .bottom-nav button.active::after {
   content: "";
   position: absolute;
   left: 50%;
-  bottom: 0;
-  width: 4px;
-  height: 4px;
+  bottom: -7px;
+  width: 5px;
+  height: 5px;
   border-radius: var(--radius-pill);
   background: var(--color-cta);
-  transform: translateX(-50%);
+  box-shadow: 0 0 9px rgba(var(--cta-rgb), 0.8);
+  transform: translateX(-50%) scale(1);
+  animation: nav-dot-in var(--motion-panel) var(--ease-emphasized);
+}
+
+@keyframes nav-dot-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) scale(0.5);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(-50%) scale(1);
+  }
 }
 
 @media (max-width: 370px) {
@@ -2735,7 +2974,7 @@ input[type="file"] {
   height: 100dvh;
   min-height: 100dvh;
   margin: 0 auto;
-  padding: 24px 18px calc(110px + env(safe-area-inset-bottom));
+  padding: max(var(--space-page-x), env(safe-area-inset-top)) var(--space-page-x) calc(110px + env(safe-area-inset-bottom));
   overflow-y: auto;
   scrollbar-width: none;
   color: var(--color-text);
@@ -3754,6 +3993,65 @@ input[type="file"] {
   margin-top: 16px;
 }
 
+.settings-apk-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.settings-apk-download {
+  min-height: 58px;
+  padding: 10px 12px;
+  border: var(--stroke-default) solid rgba(var(--cta-rgb), 0.42);
+  border-radius: var(--radius-card);
+  background: rgba(var(--accent-rgb), 0.13);
+  color: var(--color-text);
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  transition:
+    background var(--motion-fast) var(--ease-standard),
+    transform var(--motion-fast) var(--ease-standard),
+    border-color var(--motion-fast) var(--ease-standard);
+}
+
+.settings-apk-download:active {
+  transform: scale(0.98);
+  background: rgba(var(--accent-rgb), 0.2);
+  border-color: rgba(var(--cta-rgb), 0.62);
+}
+
+.settings-apk-download svg {
+  width: 21px;
+  height: 21px;
+  fill: none;
+  stroke: var(--color-text-strong);
+  stroke-width: 1.6;
+}
+
+.settings-apk-download span {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.settings-apk-download strong {
+  color: var(--color-text-strong);
+  font-family: var(--font-accent);
+  font-size: 20px;
+  font-weight: 400;
+  line-height: 1;
+}
+
+.settings-apk-download small {
+  color: rgba(106, 120, 115, 0.76);
+  font-size: 10px;
+  line-height: 1.2;
+}
+
 .settings-data-actions button {
   min-height: 84px;
   padding: 10px 10px 11px;
@@ -3817,4 +4115,16 @@ input[type="file"] {
 
 .settings-file-input {
   display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vela-splash,
+  .splash-ripple,
+  .vela-splash img,
+  .bottom-nav,
+  .bottom-nav button,
+  .bottom-nav button.active::after {
+    animation: none;
+    transition: none;
+  }
 }

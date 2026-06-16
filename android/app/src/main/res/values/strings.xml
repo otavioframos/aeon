@@ -1,0 +1,8 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Vela</string>
+    <string name="title_activity_main">Vela</string>
+    <string name="package_name">com.otavioframos.vela</string>
+    <string name="custom_url_scheme">com.otavioframos.vela</string>
+    <string name="vela_widget_name">Vela sand pit</string>
+</resources>

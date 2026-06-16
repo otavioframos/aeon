@@ -6,10 +6,16 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:android": "vite build --mode android",
+    "cap:sync": "npm run build:android && powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\prepare-android-assets.ps1 && npx cap sync android",
+    "android:open": "npm run cap:sync && npx cap open android",
+    "android:apk": "npm run cap:sync && powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\build-android-debug.ps1",
+    "android:live": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\run-android-live.ps1",
     "preview": "vite preview",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.4.0",
     "@sveltejs/adapter-static": "latest",
     "@sveltejs/kit": "latest",
     "@sveltejs/vite-plugin-svelte": "latest",
@@ -20,6 +26,14 @@
     "vite": "latest"
   },
   "dependencies": {
-    "@paper-design/shaders": "^0.0.76"
+    "@capacitor/android": "^8.4.0",
+    "@capacitor/app": "^8.1.0",
+    "@capacitor/core": "^8.4.0",
+    "@capacitor/keyboard": "^8.0.3",
+    "@capacitor/splash-screen": "^8.0.1",
+    "@capacitor/status-bar": "^8.0.2",
+    "@paper-design/shaders": "^0.0.76",
+    "dialkit": "^1.2.0",
+    "motion": "^12.40.0"
   }
 }
