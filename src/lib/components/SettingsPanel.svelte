@@ -73,7 +73,7 @@
           <section class="settings-hero-card">
             <div class="settings-balance-grid">
               <div>
-                <span>Current balance</span>
+                <span>Balance anchor</span>
                 <label>
                   <small>R$</small>
                   <input

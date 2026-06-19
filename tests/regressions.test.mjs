@@ -78,6 +78,8 @@ function legacyIdFor(value) {
   const snapshot = currentMonthCash(data, settings, now);
 
   assert.equal(snapshot.receivedIncome, 7300);
+  assert.equal(snapshot.anchorBalance, 1000);
+  assert.equal(snapshot.realBalance, 8300);
   assert.equal(snapshot.freeToSpend, 8300);
 }
 

@@ -101,14 +101,16 @@ export function currentMonthCash(data: LedgerData, settings: Settings, now = new
     if (isPostAnchorRealizedExpense(entry, settings, now)) spentExpenses += entry.amount;
   });
 
-  const realBalance = settings.currentBalance || 0;
+  const anchorBalance = settings.currentBalance || 0;
+  const realBalance = anchorBalance + receivedIncome - spentExpenses;
   return {
+    anchorBalance,
     realBalance,
     receivedIncome,
     spentExpenses,
     expectedIncome: totals.income,
     dueExpenses: totals.expenses,
-    freeToSpend: realBalance + receivedIncome - spentExpenses + totals.income - totals.expenses
+    freeToSpend: realBalance + totals.income - totals.expenses
   };
 }
 

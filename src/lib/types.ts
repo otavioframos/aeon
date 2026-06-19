@@ -67,6 +67,7 @@ export interface Aggregate {
 }
 
 export interface CashSnapshot {
+  anchorBalance: number;
   realBalance: number;
   receivedIncome: number;
   spentExpenses: number;
