@@ -22,6 +22,8 @@ public class VelaWidgetPlugin extends Plugin {
         editor.putString("freeThisMonth", doubleString(data.optDouble("freeThisMonth", 0)));
         editor.putString("desireSpent", doubleString(data.optDouble("desireSpent", 0)));
         editor.putString("desireBudget", doubleString(data.optDouble("desireBudget", 0)));
+        editor.putInt("year", data.optInt("year", 0));
+        editor.putInt("month", data.optInt("month", -1));
         editor.putInt("daysInMonth", data.optInt("daysInMonth", 30));
         editor.putInt("todayDay", data.optInt("todayDay", 1));
         editor.putInt("firstWeekday", data.optInt("firstWeekday", 0));

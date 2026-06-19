@@ -11,6 +11,17 @@ function todayParts(now = new Date()) {
   };
 }
 
+function balanceAnchor(settings: Settings) {
+  if (!settings.balanceAnchorAt) return null;
+  const parsed = new Date(settings.balanceAnchorAt);
+  const time = parsed.getTime();
+  if (!Number.isFinite(time)) return null;
+  return {
+    time,
+    index: dateIndex(parsed.getFullYear(), parsed.getMonth(), parsed.getDate())
+  };
+}
+
 export function resolvedStatus(entry: DatedEntry, now = new Date()): TransactionStatus {
   if (entry.status) return entry.status;
   return dateIndex(entry._y, entry._m, entry._d) > todayParts(now).index ? 'forecast' : 'realized';
@@ -18,6 +29,36 @@ export function resolvedStatus(entry: DatedEntry, now = new Date()): Transaction
 
 function isStillDue(entry: DatedEntry, now = new Date()) {
   return resolvedStatus(entry, now) === 'forecast' && dateIndex(entry._y, entry._m, entry._d) >= todayParts(now).index;
+}
+
+function isRealizedExpenseThroughToday(entry: DatedEntry, now = new Date()) {
+  const today = todayParts(now);
+  return entry.type === 'out' && resolvedStatus(entry, now) === 'realized' && dateIndex(entry._y, entry._m, entry._d) <= today.index;
+}
+
+function isRealizedIncomeThroughToday(entry: DatedEntry, now = new Date()) {
+  const today = todayParts(now);
+  return entry.type === 'in' && resolvedStatus(entry, now) === 'realized' && dateIndex(entry._y, entry._m, entry._d) <= today.index;
+}
+
+function isAfterBalanceAnchor(entry: DatedEntry, settings: Settings) {
+  const anchor = balanceAnchor(settings);
+  if (!anchor) return true;
+
+  if (entry.createdAt) {
+    const createdTime = new Date(entry.createdAt).getTime();
+    if (Number.isFinite(createdTime)) return createdTime >= anchor.time;
+  }
+
+  return dateIndex(entry._y, entry._m, entry._d) > anchor.index;
+}
+
+function isPostAnchorRealizedExpense(entry: DatedEntry, settings: Settings, now = new Date()) {
+  return isRealizedExpenseThroughToday(entry, now) && isAfterBalanceAnchor(entry, settings);
+}
+
+function isPostAnchorRealizedIncome(entry: DatedEntry, settings: Settings, now = new Date()) {
+  return isRealizedIncomeThroughToday(entry, now) && isAfterBalanceAnchor(entry, settings);
 }
 
 function addSigned(total: { income: number; expenses: number }, entry: DatedEntry) {
@@ -28,16 +69,25 @@ function addSigned(total: { income: number; expenses: number }, entry: DatedEntr
 export function currentMonthCash(data: LedgerData, settings: Settings, now = new Date()): CashSnapshot {
   const today = todayParts(now);
   const totals = { income: 0, expenses: 0 };
+  let receivedIncome = 0;
+  let spentExpenses = 0;
   entriesIn(data, (year, month) => year === today.year && month === today.month).forEach((entry) => {
-    if (isStillDue(entry, now)) addSigned(totals, entry);
+    if (isStillDue(entry, now)) {
+      addSigned(totals, entry);
+      return;
+    }
+    if (isPostAnchorRealizedIncome(entry, settings, now)) receivedIncome += entry.amount;
+    if (isPostAnchorRealizedExpense(entry, settings, now)) spentExpenses += entry.amount;
   });
 
   const realBalance = settings.currentBalance || 0;
   return {
     realBalance,
+    receivedIncome,
+    spentExpenses,
     expectedIncome: totals.income,
     dueExpenses: totals.expenses,
-    freeToSpend: realBalance + totals.income - totals.expenses
+    freeToSpend: realBalance + receivedIncome - spentExpenses + totals.income - totals.expenses
   };
 }
 
@@ -50,11 +100,22 @@ export function projectionMonths(data: LedgerData, year: number, settings: Setti
     const totals = { income: 0, expenses: 0 };
 
     if (active) {
+      let receivedIncome = 0;
+      let spentExpenses = 0;
       entriesIn(data, (entryYear, entryMonth) => entryYear === year && entryMonth === month).forEach((entry) => {
-        if (isStillDue(entry, now)) addSigned(totals, entry);
+        if (isStillDue(entry, now)) {
+          addSigned(totals, entry);
+          return;
+        }
+        if (year === today.year && month === today.month && isPostAnchorRealizedIncome(entry, settings, now)) {
+          receivedIncome += entry.amount;
+        }
+        if (year === today.year && month === today.month && isPostAnchorRealizedExpense(entry, settings, now)) {
+          spentExpenses += entry.amount;
+        }
       });
       const opening = rolling;
-      rolling = rolling + totals.income - totals.expenses;
+      rolling = rolling + receivedIncome - spentExpenses + totals.income - totals.expenses;
       return {
         month,
         opening,

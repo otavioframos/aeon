@@ -9,6 +9,7 @@ export default defineConfig({
   plugins: [
     {
       name: 'dialkit-svelte-published-package-shims',
+      enforce: 'pre',
       resolveId(source, importer) {
         const normalizedImporter = importer?.replaceAll('\\', '/');
         const fromDialkitSvelte = normalizedImporter?.includes('/node_modules/dialkit/dist/svelte/');
@@ -20,5 +21,8 @@ export default defineConfig({
       }
     },
     sveltekit()
-  ]
+  ],
+  optimizeDeps: {
+    exclude: ['dialkit']
+  }
 });

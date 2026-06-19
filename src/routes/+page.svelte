@@ -18,7 +18,17 @@
   import { currentMonthCash, projectionMonths, resolvedStatus } from '$lib/cashModel';
   import { catById, isPortfolioCategory } from '$lib/categories';
   import { DEFAULT_SETTINGS, aggregate, entriesIn, key, monthAgg, parseAmount } from '$lib/finance';
-  import { listDataYears, loadData, loadSettings, normalizeBackup, saveData, saveSettings as persistSettings } from '$lib/storage';
+  import {
+    collectDataYears,
+    createBackupPayload,
+    listDataYears,
+    loadData,
+    loadSettings,
+    normalizeBackup,
+    replaceDataYears,
+    saveData,
+    saveSettings as persistSettings
+  } from '$lib/storage';
   import { themeVars } from '$lib/theme';
   import { addMonthsClamped, buildTransactionEntries, datePartsFromISO, splitAmount, statusForDateParts, todayISO } from '$lib/transactions';
   import { syncVelaWidget } from '$lib/nativeWidget';
@@ -317,7 +327,6 @@
     installmentCount = 1;
     purchaseDate = todayISO();
     controlOpen = false;
-    amountInput?.focus();
   }
 
   function commitEntries(generated: ReturnType<typeof buildTransactionEntries>) {
@@ -391,6 +400,7 @@
       byYear.forEach((yearData, itemYear) => saveData(itemYear, yearData));
       if (byYear.has(year)) data = byYear.get(year) || data;
       else if (byYear.size) data = loadData(year);
+      syncWidget();
     } catch {
       showNotice('Storage blocked', 'Open the app in your browser or export a backup to keep this data safely.');
     }
@@ -549,7 +559,10 @@
   }
 
   function updateSetting(keyName: keyof Settings, value: Settings[keyof Settings]) {
-    settings = { ...settings, [keyName]: value } as Settings;
+    settings =
+      keyName === 'currentBalance'
+        ? ({ ...settings, currentBalance: Number(value) || 0, balanceAnchorAt: new Date().toISOString() } as Settings)
+        : ({ ...settings, [keyName]: value } as Settings);
     saveSettings();
   }
 
@@ -567,14 +580,17 @@
   }
 
   function exportData() {
-    const payload = { year, data, settings, exportedAt: new Date().toISOString() };
-    downloadFile(`fluxo_${year}.json`, JSON.stringify(payload, null, 2), 'application/json');
+    const payload = createBackupPayload(year, data, settings);
+    downloadFile(`fluxo_backup_${year}.json`, JSON.stringify(payload, null, 2), 'application/json');
   }
 
   function exportCSV() {
     const rows: { y: number; m: number; d: number; entry: DatedEntry }[] = [];
-    entriesIn(data, () => true).forEach((entry) => rows.push({ y: entry._y, m: entry._m, d: entry._d, entry }));
-    rows.sort((a, b) => a.m - b.m || a.d - b.d);
+    Object.entries(collectDataYears(year, data)).forEach(([rawYear, yearData]) => {
+      const itemYear = Number(rawYear);
+      entriesIn(yearData, (entryYear) => entryYear === itemYear).forEach((entry) => rows.push({ y: entry._y, m: entry._m, d: entry._d, entry }));
+    });
+    rows.sort((a, b) => a.y - b.y || a.m - b.m || a.d - b.d);
     const esc = (value: unknown) => {
       const text = String(value ?? '');
       return /[";\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
@@ -628,10 +644,11 @@
         }).then((confirmed) => {
           if (!confirmed) return;
           if (payload.year) year = payload.year;
-          data = payload.data;
+          replaceDataYears(payload.years);
+          data = payload.year ? payload.years[String(payload.year)] || {} : payload.data;
           if (payload.settings) settings = { ...settings, ...payload.settings };
-          save();
           saveSettings();
+          syncWidget();
           flash('importado');
         });
       } catch {

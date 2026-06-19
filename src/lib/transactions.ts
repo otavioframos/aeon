@@ -73,6 +73,7 @@ export function buildTransactionEntries(draft: TransactionDraft): GeneratedTrans
   const purchaseDate = draft.purchaseDate || todayISO();
   const groupId = installmentCount > 1 ? uid() : undefined;
   const amounts = splitAmount(draft.totalAmount, installmentCount);
+  const createdAt = new Date().toISOString();
 
   return amounts.map((amount, index) => {
     const target = addMonthsClamped(purchaseDate, index);
@@ -86,6 +87,7 @@ export function buildTransactionEntries(draft: TransactionDraft): GeneratedTrans
         cat: draft.cat,
         desc: draft.desc,
         status: statusForDateParts(target.year, target.month, target.day),
+        createdAt,
         purchaseDate,
         sourceAmount: Math.abs(draft.totalAmount),
         installmentGroupId: groupId,

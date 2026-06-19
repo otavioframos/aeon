@@ -12,7 +12,8 @@
     "android:apk": "npm run cap:sync && powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\build-android-debug.ps1",
     "android:live": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\run-android-live.ps1",
     "preview": "vite preview",
-    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json"
+    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+    "test:unit": "node tests/regressions.test.mjs"
   },
   "devDependencies": {
     "@capacitor/cli": "^8.4.0",

@@ -1,6 +1,6 @@
 import { DEFAULT_SETTINGS } from './finance';
 import { statusForDateParts } from './transactions';
-import type { BackupPayload, Entry, LedgerData, Settings } from './types';
+import type { BackupPayload, Entry, LedgerData, NormalizedBackup, Settings } from './types';
 
 const PFX = 'fluxo_v3_';
 const SET_KEY = 'fluxo_settings_v3';
@@ -16,6 +16,10 @@ export function loadData(year: number): LedgerData {
 
 export function saveData(year: number, data: LedgerData) {
   localStorage.setItem(PFX + year, JSON.stringify(data));
+}
+
+export function removeData(year: number) {
+  localStorage.removeItem(PFX + year);
 }
 
 export function listDataYears() {
@@ -46,12 +50,76 @@ export function saveSettings(settings: Settings) {
   localStorage.setItem(SET_KEY, JSON.stringify(settings));
 }
 
-export function normalizeBackup(payload: BackupPayload) {
+export function createBackupPayload(year: number, data: LedgerData, settings: Settings): BackupPayload {
+  const years = collectDataYears(year, data);
   return {
-    year: payload.year,
-    data: normalizeLedgerData(payload.data || {}),
+    version: 2,
+    year,
+    data: years[String(year)] || normalizeLedgerData(data),
+    years,
+    settings,
+    exportedAt: new Date().toISOString()
+  };
+}
+
+export function collectDataYears(activeYear: number, activeData: LedgerData): Record<string, LedgerData> {
+  const years = new Set([activeYear, ...listDataYears()]);
+  return Object.fromEntries(
+    [...years]
+      .sort((a, b) => a - b)
+      .map((itemYear) => [String(itemYear), normalizeLedgerData(itemYear === activeYear ? activeData : loadData(itemYear))])
+  );
+}
+
+export function replaceDataYears(years: Record<string, LedgerData>) {
+  listDataYears().forEach(removeData);
+  Object.entries(years).forEach(([rawYear, yearData]) => {
+    const itemYear = Number(rawYear);
+    if (Number.isFinite(itemYear)) saveData(itemYear, normalizeLedgerData(yearData));
+  });
+}
+
+export function normalizeBackup(payload: BackupPayload): NormalizedBackup {
+  const years = normalizeBackupYears(payload);
+  const year = payload.year ?? firstBackupYear(years);
+  const data = year ? years[String(year)] || {} : {};
+  return {
+    year,
+    data,
+    years,
     settings: payload.settings
   };
+}
+
+function normalizeBackupYears(payload: BackupPayload) {
+  if (payload.years && typeof payload.years === 'object') {
+    return Object.fromEntries(
+      Object.entries(payload.years)
+        .filter(([rawYear]) => Number.isFinite(Number(rawYear)))
+        .map(([rawYear, yearData]) => [String(Number(rawYear)), normalizeLedgerData(yearData || {})])
+    );
+  }
+
+  if (payload.data) {
+    const year = payload.year ?? firstLedgerYear(payload.data);
+    return year ? { [String(year)]: normalizeLedgerData(payload.data) } : {};
+  }
+
+  return {};
+}
+
+function firstBackupYear(years: Record<string, LedgerData>) {
+  const [first] = Object.keys(years)
+    .map(Number)
+    .filter(Number.isFinite)
+    .sort((a, b) => a - b);
+  return first;
+}
+
+function firstLedgerYear(data: LedgerData) {
+  const [firstKey] = Object.keys(data);
+  const year = Number(firstKey?.split('-')[0]);
+  return Number.isFinite(year) ? year : undefined;
 }
 
 function normalizeLedgerData(source: LedgerData): LedgerData {

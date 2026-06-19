@@ -18,6 +18,7 @@ export interface Entry {
   cat: string;
   desc: string;
   status?: TransactionStatus;
+  createdAt?: string;
   purchaseDate?: string;
   sourceAmount?: number;
   installmentGroupId?: string;
@@ -43,6 +44,7 @@ export type LedgerData = Record<string, Entry[]>;
 
 export interface Settings {
   currentBalance: number;
+  balanceAnchorAt?: string;
   salary: number;
   essenciais: number;
   desejos: number;
@@ -66,6 +68,8 @@ export interface Aggregate {
 
 export interface CashSnapshot {
   realBalance: number;
+  receivedIncome: number;
+  spentExpenses: number;
   expectedIncome: number;
   dueExpenses: number;
   freeToSpend: number;
@@ -150,8 +154,17 @@ export interface HeroModel {
 }
 
 export interface BackupPayload {
+  version?: number;
   year?: number;
   data?: LedgerData;
+  years?: Record<string, LedgerData>;
   settings?: Partial<Settings>;
   exportedAt?: string;
+}
+
+export interface NormalizedBackup {
+  year?: number;
+  data: LedgerData;
+  years: Record<string, LedgerData>;
+  settings?: Partial<Settings>;
 }

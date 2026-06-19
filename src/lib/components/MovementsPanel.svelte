@@ -22,7 +22,6 @@
   let editCat = '';
   let editDate = '';
   let editApplyGroup = false;
-  const currentMonthIndex = new Date().getMonth();
 
   $: if (editingEntry) {
     editAmount = editingEntry.sourceAmount && editingEntry.installmentGroupId ? fmtNum(editingEntry.sourceAmount) : fmtNum(editingEntry.amount);
@@ -51,7 +50,8 @@
   }
 
   function headingFor(entry: DatedEntry) {
-    return entry._m === currentMonthIndex && entry._y === new Date().getFullYear() ? 'This Month' : MONTHS_FULL[entry._m];
+    const now = new Date();
+    return entry._m === now.getMonth() && entry._y === now.getFullYear() ? 'This Month' : MONTHS_FULL[entry._m];
   }
 
   function toggleSelection(entry: DatedEntry) {

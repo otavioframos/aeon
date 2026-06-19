@@ -13,6 +13,8 @@ type VelaWidgetPayload = {
   freeThisMonth: number;
   desireSpent: number;
   desireBudget: number;
+  year: number;
+  month: number;
   daysInMonth: number;
   todayDay: number;
   firstWeekday: number;
@@ -48,6 +50,8 @@ export function syncVelaWidget(data: LedgerData, settings: Settings, now = new D
     freeThisMonth: cash.freeToSpend,
     desireSpent,
     desireBudget,
+    year,
+    month,
     daysInMonth: monthDays,
     todayDay: now.getDate(),
     firstWeekday: new Date(year, month, 1).getDay(),
