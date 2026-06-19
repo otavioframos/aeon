@@ -27,8 +27,9 @@ function isRealizedThrough(entryYear: number, entryMonth: number, entryDay: numb
   return dateIndex(entryYear, entryMonth, entryDay) <= todayIndex;
 }
 
-function isDesireEntry(categoryId: string) {
-  return catById(categoryId)?.group === 'Desejos';
+function isLivingEntry(categoryId: string) {
+  const group = catById(categoryId)?.group;
+  return group === 'Essenciais' || group === 'Desejos';
 }
 
 export function getScopeData(
@@ -65,7 +66,7 @@ export function getDailySpendData(
   if (currentScope === 'year') {
     return aggregate(
       entriesIn(currentData, (y, m, d) => y === currentYear && isRealizedThrough(y, m, d, undefined, now)).filter(
-        (entry) => entry.type === 'out' && isDesireEntry(entry.cat) && isRealizedThrough(entry._y, entry._m, entry._d, entry.status, now)
+        (entry) => entry.type === 'out' && isLivingEntry(entry.cat) && isRealizedThrough(entry._y, entry._m, entry._d, entry.status, now)
       )
     );
   }
@@ -74,14 +75,14 @@ export function getDailySpendData(
     const cycle = currentCashCycle(currentSettings, now);
     return aggregate(
       entriesIn(currentData, (y, m, d) => isDateInCycle(y, m, d, cycle) && isRealizedThrough(y, m, d, undefined, now)).filter(
-        (entry) => entry.type === 'out' && isDesireEntry(entry.cat) && isRealizedThrough(entry._y, entry._m, entry._d, entry.status, now)
+        (entry) => entry.type === 'out' && isLivingEntry(entry.cat) && isRealizedThrough(entry._y, entry._m, entry._d, entry.status, now)
       )
     );
   }
 
   return aggregate(
     entriesIn(currentData, (y, m, d) => y === currentYear && m === currentScopeMonth && isRealizedThrough(y, m, d, undefined, now)).filter(
-      (entry) => entry.type === 'out' && isDesireEntry(entry.cat) && isRealizedThrough(entry._y, entry._m, entry._d, entry.status, now)
+      (entry) => entry.type === 'out' && isLivingEntry(entry.cat) && isRealizedThrough(entry._y, entry._m, entry._d, entry.status, now)
     )
   );
 }
@@ -182,7 +183,8 @@ export function heroModel(
   }
 
   const burn = current.exp / elapsed;
-  const budget = (isYear ? currentSettings.salary * 12 : currentSettings.salary) * (currentSettings.desejos / 100);
+  const livingPct = currentSettings.essenciais + currentSettings.desejos;
+  const budget = (isYear ? currentSettings.salary * 12 : currentSettings.salary) * (livingPct / 100);
   const projected = burn * total;
   const pacePct = budget > 0 ? Math.min(140, (projected / budget) * 100) : 0;
   const level = projected <= budget ? 'green' : projected <= budget * 1.15 ? 'yellow' : 'red';

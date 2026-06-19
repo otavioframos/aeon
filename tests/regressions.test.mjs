@@ -136,7 +136,13 @@ function legacyIdFor(value) {
     cycleWeekendRule: 'previousBusinessDay'
   };
   const data = {
-    '2026-5-19': [expense(100, { cat: 'lazer' }), expense(200, { cat: 'mercado' }), expense(2100, { cat: 'invest' })],
+    '2026-5-19': [
+      expense(100, { cat: 'lazer' }),
+      expense(200, { cat: 'mercado' }),
+      expense(2100, { cat: 'invest' }),
+      expense(1245, { cat: 'graduacao' }),
+      expense(86.05, { cat: 'imposto' })
+    ],
     '2026-5-20': [expense(8000, { status: 'forecast' })],
     '2026-6-19': [expense(423.94, { status: 'forecast' })]
   };
@@ -144,10 +150,10 @@ function legacyIdFor(value) {
   const dailySpend = getDailySpendData(data, 2026, 'month', 5, settings, now);
   const hero = heroModel(dailySpend, 'month', 2026, 5, settings, now);
 
-  assert.equal(scoped.exp, 2400);
-  assert.equal(dailySpend.exp, 100);
-  assert.equal(hero.burn, 100);
-  assert.equal(hero.budget, 1400);
+  assert.equal(scoped.exp, 3731.05);
+  assert.equal(dailySpend.exp, 300);
+  assert.equal(hero.burn, 300);
+  assert.equal(hero.budget, 4900);
   assert.equal(hero.periodDays, 31);
 }
 

@@ -31,8 +31,8 @@
 <div class="metric-rail" aria-label="Métricas principais">
   <article class="metric-card metric-card-pace">
     <div class="metric-chip" class:on={paceOk}>{paceOk ? 'on pace' : 'attention'}</div>
-    <div class="metric-name">Daily Spend</div>
-    <div class="metric-sub">threshold: R$ {fmtNum(dailyThreshold)}</div>
+    <div class="metric-name">Living Pace</div>
+    <div class="metric-sub">essentials + desires: R$ {fmtNum(dailyThreshold)}</div>
     <div class="metric-value">R$ {fmtNum(hero.burn)}</div>
   </article>
 
