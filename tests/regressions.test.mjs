@@ -9,6 +9,7 @@ const server = await createServer({
 
 const { currentMonthCash, projectionMonths } = await server.ssrLoadModule('/src/lib/cashModel.ts');
 const { normalizeBackup } = await server.ssrLoadModule('/src/lib/storage.ts');
+const { getDailySpendData, getScopeData, heroModel } = await server.ssrLoadModule('/src/lib/viewModels.ts');
 
 const baseSettings = {
   currentBalance: 1000,
@@ -125,6 +126,29 @@ function legacyIdFor(value) {
   assert.equal(snapshot.cycleStart, '2026-06-19');
   assert.equal(snapshot.dueExpenses, 500);
   assert.equal(snapshot.freeToSpend, 7800);
+}
+
+{
+  const now = new Date('2026-06-19T17:00:00');
+  const settings = {
+    ...baseSettings,
+    cycleStartDay: 20,
+    cycleWeekendRule: 'previousBusinessDay'
+  };
+  const data = {
+    '2026-5-19': [expense(100, { cat: 'lazer' }), expense(200, { cat: 'mercado' }), expense(2100, { cat: 'invest' })],
+    '2026-5-20': [expense(8000, { status: 'forecast' })],
+    '2026-6-19': [expense(423.94, { status: 'forecast' })]
+  };
+  const scoped = getScopeData(data, 2026, 'month', 5, settings, now);
+  const dailySpend = getDailySpendData(data, 2026, 'month', 5, settings, now);
+  const hero = heroModel(dailySpend, 'month', 2026, 5, settings, now);
+
+  assert.equal(scoped.exp, 2400);
+  assert.equal(dailySpend.exp, 100);
+  assert.equal(hero.burn, 100);
+  assert.equal(hero.budget, 1400);
+  assert.equal(hero.periodDays, 31);
 }
 
 {

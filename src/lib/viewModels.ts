@@ -1,6 +1,8 @@
 import { currentCashCycle, isDateInCycle } from './cashCycle';
 import { catById } from './categories';
 import { MONTHS, aggregate, daysInMonth, daysInYear, entriesIn, monthAgg } from './finance';
+import { dateIndex } from './transactions';
+import type { TransactionStatus } from './types';
 import type {
   Aggregate,
   AllocationModel,
@@ -19,15 +21,69 @@ function isCurrentMonthScope(currentYear: number, currentScope: Scope, currentSc
   return currentScope === 'month' && currentYear === now.getFullYear() && currentScopeMonth === now.getMonth();
 }
 
-export function getScopeData(currentData: LedgerData, currentYear: number, currentScope: Scope, currentScopeMonth: number, currentSettings?: Settings) {
-  if (currentSettings && isCurrentMonthScope(currentYear, currentScope, currentScopeMonth)) {
-    const cycle = currentCashCycle(currentSettings);
-    return aggregate(entriesIn(currentData, (y, m, d) => isDateInCycle(y, m, d, cycle)));
+function isRealizedThrough(entryYear: number, entryMonth: number, entryDay: number, status: TransactionStatus | undefined, now: Date) {
+  if (status === 'forecast') return false;
+  const todayIndex = dateIndex(now.getFullYear(), now.getMonth(), now.getDate());
+  return dateIndex(entryYear, entryMonth, entryDay) <= todayIndex;
+}
+
+function isDesireEntry(categoryId: string) {
+  return catById(categoryId)?.group === 'Desejos';
+}
+
+export function getScopeData(
+  currentData: LedgerData,
+  currentYear: number,
+  currentScope: Scope,
+  currentScopeMonth: number,
+  currentSettings?: Settings,
+  now = new Date()
+) {
+  if (currentSettings && isCurrentMonthScope(currentYear, currentScope, currentScopeMonth, now)) {
+    const cycle = currentCashCycle(currentSettings, now);
+    const todayIndex = dateIndex(now.getFullYear(), now.getMonth(), now.getDate());
+    return aggregate(
+      entriesIn(currentData, (y, m, d) => isDateInCycle(y, m, d, cycle) && dateIndex(y, m, d) <= todayIndex).filter(
+        (entry) => entry.status !== 'forecast'
+      )
+    );
   }
 
   return currentScope === 'year'
     ? aggregate(entriesIn(currentData, (y) => y === currentYear))
     : aggregate(entriesIn(currentData, (y, m) => y === currentYear && m === currentScopeMonth));
+}
+
+export function getDailySpendData(
+  currentData: LedgerData,
+  currentYear: number,
+  currentScope: Scope,
+  currentScopeMonth: number,
+  currentSettings: Settings,
+  now = new Date()
+) {
+  if (currentScope === 'year') {
+    return aggregate(
+      entriesIn(currentData, (y, m, d) => y === currentYear && isRealizedThrough(y, m, d, undefined, now)).filter(
+        (entry) => entry.type === 'out' && isDesireEntry(entry.cat) && isRealizedThrough(entry._y, entry._m, entry._d, entry.status, now)
+      )
+    );
+  }
+
+  if (isCurrentMonthScope(currentYear, currentScope, currentScopeMonth, now)) {
+    const cycle = currentCashCycle(currentSettings, now);
+    return aggregate(
+      entriesIn(currentData, (y, m, d) => isDateInCycle(y, m, d, cycle) && isRealizedThrough(y, m, d, undefined, now)).filter(
+        (entry) => entry.type === 'out' && isDesireEntry(entry.cat) && isRealizedThrough(entry._y, entry._m, entry._d, entry.status, now)
+      )
+    );
+  }
+
+  return aggregate(
+    entriesIn(currentData, (y, m, d) => y === currentYear && m === currentScopeMonth && isRealizedThrough(y, m, d, undefined, now)).filter(
+      (entry) => entry.type === 'out' && isDesireEntry(entry.cat) && isRealizedThrough(entry._y, entry._m, entry._d, entry.status, now)
+    )
+  );
 }
 
 export function getPrevScopeData(currentData: LedgerData, currentYear: number, currentScope: Scope, currentScopeMonth: number) {
@@ -93,9 +149,16 @@ export function allocationModel(current: Aggregate): AllocationModel {
   };
 }
 
-export function heroModel(current: Aggregate, currentScope: Scope, currentYear: number, currentScopeMonth: number, currentSettings: Settings): HeroModel {
+export function heroModel(
+  current: Aggregate,
+  currentScope: Scope,
+  currentYear: number,
+  currentScopeMonth: number,
+  currentSettings: Settings,
+  now = new Date()
+): HeroModel {
   const isYear = currentScope === 'year';
-  const today = new Date();
+  const today = now;
   let elapsed: number;
   let total: number;
   let dayLabel: string;
@@ -119,15 +182,10 @@ export function heroModel(current: Aggregate, currentScope: Scope, currentYear: 
   }
 
   const burn = current.exp / elapsed;
-  const budget = isYear ? currentSettings.salary * 12 : currentSettings.salary;
+  const budget = (isYear ? currentSettings.salary * 12 : currentSettings.salary) * (currentSettings.desejos / 100);
   const projected = burn * total;
   const pacePct = budget > 0 ? Math.min(140, (projected / budget) * 100) : 0;
-  const level =
-    projected <= (budget * (currentSettings.essenciais + currentSettings.desejos)) / 100
-      ? 'green'
-      : projected <= budget
-        ? 'yellow'
-        : 'red';
+  const level = projected <= budget ? 'green' : projected <= budget * 1.15 ? 'yellow' : 'red';
   const markerPos = projected > budget ? Math.min(100, 100 / (projected / budget)) : 100;
   return {
     burn,

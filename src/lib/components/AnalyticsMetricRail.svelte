@@ -15,7 +15,7 @@
   export let investmentTotal = 0;
 
   $: periodDays = hero.periodDays || (scope === 'year' ? daysInYear(year) : daysInMonth(year, scopeMonth));
-  $: dailyThreshold = (scope === 'year' ? settings.salary * 12 : settings.salary) / Math.max(1, periodDays);
+  $: dailyThreshold = hero.budget / Math.max(1, periodDays);
   $: paceOk = hero.projected <= hero.budget;
   $: referenceIncome = scope === 'year' ? settings.salary * 12 : settings.salary;
   $: investmentBasis = Math.max(referenceIncome, 0);

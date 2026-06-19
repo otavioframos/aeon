@@ -35,6 +35,7 @@
   import {
     allocationModel,
     buildRankItems,
+    getDailySpendData,
     getPrevScopeData,
     getScopeData,
     heatModel,
@@ -106,6 +107,7 @@
 
   let cashSnapshot: CashSnapshot = currentMonthCash(data, settings);
   let scopedData: Aggregate = aggregate([]);
+  let dailySpendData: Aggregate = aggregate([]);
   let previousScopedData: Aggregate = aggregate([]);
   let rankItems: RankItem[] = [];
   let reserve: ReserveModel | null = null;
@@ -121,10 +123,11 @@
   let scopedPortfolioContribution = 0;
   let projections: ProjectionMonth[] = [];
   let allocation: AllocationModel = allocationModel(scopedData);
-  let hero: HeroModel = heroModel(scopedData, scope, year, scopeMonth, settings);
+  let hero: HeroModel = heroModel(dailySpendData, scope, year, scopeMonth, settings);
 
   $: cashSnapshot = currentMonthCash(data, settings);
   $: scopedData = getScopeData(data, year, scope, scopeMonth, settings);
+  $: dailySpendData = getDailySpendData(data, year, scope, scopeMonth, settings);
   $: previousScopedData = getPrevScopeData(data, year, scope, scopeMonth);
   $: rankItems = buildRankItems(scopedData, previousScopedData, rankMode);
   $: reserve = reserveModel(data, year);
@@ -144,7 +147,7 @@
   );
   $: projections = projectionMonths(data, year, settings);
   $: allocation = allocationModel(scopedData);
-  $: hero = heroModel(scopedData, scope, year, scopeMonth, settings);
+  $: hero = heroModel(dailySpendData, scope, year, scopeMonth, settings);
   $: if (browser) applyTheme(settings.accentColor);
 
   onMount(() => {
