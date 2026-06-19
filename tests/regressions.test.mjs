@@ -49,6 +49,10 @@ function income(amount, overrides = {}) {
   };
 }
 
+function legacyIdFor(value) {
+  return `${new Date(value).getTime().toString(36)}zzzz`;
+}
+
 {
   const now = new Date('2026-06-18T15:00:00');
   const settings = { ...baseSettings, balanceAnchorAt: '2026-06-18T12:00:00.000Z' };
@@ -63,6 +67,18 @@ function income(amount, overrides = {}) {
   assert.equal(snapshot.expectedIncome, 500);
   assert.equal(snapshot.freeToSpend, 1800);
   assert.equal(juneProjection.closing, 1800);
+}
+
+{
+  const now = new Date('2026-06-19T17:00:00');
+  const settings = { ...baseSettings, balanceAnchorAt: '2026-06-19T12:00:00.000Z' };
+  const data = {
+    '2026-5-19': [income(7300, { id: legacyIdFor('2026-06-19T16:00:00.000Z'), status: 'realized', createdAt: undefined })]
+  };
+  const snapshot = currentMonthCash(data, settings, now);
+
+  assert.equal(snapshot.receivedIncome, 7300);
+  assert.equal(snapshot.freeToSpend, 8300);
 }
 
 {

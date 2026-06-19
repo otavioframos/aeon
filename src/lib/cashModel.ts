@@ -22,6 +22,29 @@ function balanceAnchor(settings: Settings) {
   };
 }
 
+function createdTime(entry: DatedEntry) {
+  if (entry.createdAt) {
+    const parsed = new Date(entry.createdAt).getTime();
+    if (Number.isFinite(parsed)) return parsed;
+  }
+
+  return createdTimeFromLegacyId(entry.id);
+}
+
+function createdTimeFromLegacyId(id: string) {
+  const match = id.match(/^[0-9a-z]{8,9}/i);
+  if (!match) return null;
+
+  for (const size of [9, 8]) {
+    const prefix = match[0].slice(0, size);
+    if (prefix.length !== size) continue;
+    const parsed = Number.parseInt(prefix, 36);
+    if (parsed >= Date.UTC(2020, 0, 1) && parsed <= Date.UTC(2100, 0, 1)) return parsed;
+  }
+
+  return null;
+}
+
 export function resolvedStatus(entry: DatedEntry, now = new Date()): TransactionStatus {
   if (entry.status) return entry.status;
   return dateIndex(entry._y, entry._m, entry._d) > todayParts(now).index ? 'forecast' : 'realized';
@@ -45,10 +68,8 @@ function isAfterBalanceAnchor(entry: DatedEntry, settings: Settings) {
   const anchor = balanceAnchor(settings);
   if (!anchor) return true;
 
-  if (entry.createdAt) {
-    const createdTime = new Date(entry.createdAt).getTime();
-    if (Number.isFinite(createdTime)) return createdTime >= anchor.time;
-  }
+  const entryCreatedTime = createdTime(entry);
+  if (entryCreatedTime) return entryCreatedTime >= anchor.time;
 
   return dateIndex(entry._y, entry._m, entry._d) > anchor.index;
 }
