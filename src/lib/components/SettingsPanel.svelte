@@ -1,6 +1,6 @@
 <script lang="ts">
   import { ACCENT_SWATCHES, DEFAULT_ACCENT, normalizeHex } from '$lib/theme';
-  import type { Settings } from '$lib/types';
+  import type { CycleWeekendRule, Settings } from '$lib/types';
 
   type GoalKey = 'essenciais' | 'desejos' | 'investimentos';
   type MeshKey = 'dotSpacing' | 'dotSize' | 'dotOpacity' | 'waveIntensity' | 'waveRadius' | 'noise';
@@ -12,10 +12,12 @@
   export let onExportCSV: () => void;
   export let onImportDataFile: (event: Event) => void;
   export let onResetYear: () => void;
+  export let onRegisterPayday: () => void;
   export let apkHref = '/vela.apk';
   export let showApkDownload = true;
 
   let fileInput: HTMLInputElement | undefined;
+  let weekendRuleOpen = false;
 
   const goalSliders: { key: GoalKey; label: string; caption: string; color: string; icon: string }[] = [
     { key: 'essenciais', label: 'Essentials', caption: 'rent, food, recurring needs', color: '#85b694', icon: '<path d="M3 12l9-9 9 9"/><path d="M5 10v10h14V10"/>' },
@@ -32,9 +34,16 @@
     { key: 'noise', label: 'Dither noise', min: 0, max: 0.2, step: 0.005, decimals: 3 }
   ];
 
+  const weekendRules: { key: CycleWeekendRule; label: string; caption: string }[] = [
+    { key: 'previousBusinessDay', label: 'Previous business day', caption: 'Saturday or Sunday salary starts on Friday.' },
+    { key: 'fixedDay', label: 'Fixed day', caption: 'The cycle starts on the chosen calendar day.' },
+    { key: 'nextBusinessDay', label: 'Next business day', caption: 'Weekend salary starts on Monday.' }
+  ];
+
   $: allocationTotal = settings.essenciais + settings.desejos + settings.investimentos;
   $: monthlyInvestmentTarget = settings.salary * (settings.investimentos / 100);
   $: accentColor = normalizeHex(settings.accentColor || DEFAULT_ACCENT);
+  $: weekendRule = weekendRules.find((rule) => rule.key === settings.cycleWeekendRule) || weekendRules[0];
 
   function fmt(value: number) {
     return value.toLocaleString('pt-BR', { maximumFractionDigits: 0 });
@@ -46,6 +55,11 @@
 
   function setAccent(value: string) {
     onUpdateSetting('accentColor', normalizeHex(value));
+  }
+
+  function setWeekendRule(value: CycleWeekendRule) {
+    onUpdateSetting('cycleWeekendRule', value);
+    weekendRuleOpen = false;
   }
 </script>
 
@@ -93,6 +107,43 @@
               </div>
             </div>
             <p>Anchor balance drives Flux. Reference income drives pace and targets.</p>
+          </section>
+
+          <section class="settings-card cycle-card">
+            <div class="settings-card-head">
+              <div>
+                <h2>Financial cycle</h2>
+                <p>Flux follows your salary rhythm. Aeon keeps the long calendar view.</p>
+              </div>
+            </div>
+
+            <div class="cycle-controls">
+              <label class="cycle-day-control">
+                <span>Cycle starts on day</span>
+                <input
+                  type="number"
+                  min="1"
+                  max="31"
+                  value={settings.cycleStartDay}
+                  on:input={(event) => onUpdateSetting('cycleStartDay', Math.max(1, Math.min(31, parseInt((event.currentTarget as HTMLInputElement).value) || 1)))}
+                />
+              </label>
+
+              <button class="cycle-rule-button" type="button" on:click={() => (weekendRuleOpen = true)}>
+                <span>
+                  <small>Weekend payday</small>
+                  <strong>{weekendRule.label}</strong>
+                </span>
+                <svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6" /></svg>
+              </button>
+
+              <button class="register-payday" type="button" on:click={onRegisterPayday}>
+                <span>
+                  <strong>Register payday</strong>
+                  <small>Mark today as day 1 of a new cycle</small>
+                </span>
+              </button>
+            </div>
           </section>
 
           <section class="settings-card">
@@ -255,5 +306,32 @@
         </div>
       </details>
     </div>
+  </div>
+</section>
+
+<button class:open={weekendRuleOpen} class="cycle-modal-backdrop" aria-hidden={!weekendRuleOpen} aria-label="Close payday rule" tabindex={weekendRuleOpen ? 0 : -1} on:click={() => (weekendRuleOpen = false)}></button>
+<section class:open={weekendRuleOpen} class="cycle-rule-modal" aria-hidden={!weekendRuleOpen} inert={!weekendRuleOpen}>
+  <header>
+    <div>
+      <span>Payday landing on weekend</span>
+      <h2>Cycle start rule</h2>
+    </div>
+    <button type="button" aria-label="Close payday rule" on:click={() => (weekendRuleOpen = false)}>
+      <svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12" /></svg>
+    </button>
+  </header>
+
+  <div class="cycle-rule-list">
+    {#each weekendRules as rule}
+      <button class:active={settings.cycleWeekendRule === rule.key} type="button" on:click={() => setWeekendRule(rule.key)}>
+        <span>
+          <strong>{rule.label}</strong>
+          <small>{rule.caption}</small>
+        </span>
+        {#if settings.cycleWeekendRule === rule.key}
+          <svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5" /></svg>
+        {/if}
+      </button>
+    {/each}
   </div>
 </section>

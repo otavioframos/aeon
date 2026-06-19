@@ -1,5 +1,6 @@
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import { currentMonthCash, resolvedStatus } from './cashModel';
+import { currentCashCycle, isDateInCycle } from './cashCycle';
 import { catById } from './categories';
 import { daysInMonth, entriesIn } from './finance';
 import type { LedgerData, Settings } from './types';
@@ -31,16 +32,17 @@ export function syncVelaWidget(data: LedgerData, settings: Settings, now = new D
   const monthDays = daysInMonth(year, month);
   const desireDaily = Array.from({ length: monthDays }, () => 0);
   const cash = currentMonthCash(data, settings, now);
+  const cycle = currentCashCycle(settings, now);
   const desireBudget = Math.max(0, (settings.salary || 0) * ((settings.desejos || 0) / 100));
 
   let desireSpent = 0;
-  entriesIn(data, (entryYear, entryMonth) => entryYear === year && entryMonth === month).forEach((entry) => {
+  entriesIn(data, (entryYear, entryMonth, entryDay) => isDateInCycle(entryYear, entryMonth, entryDay, cycle)).forEach((entry) => {
     if (entry.type !== 'out') return;
     if (resolvedStatus(entry, now) !== 'realized') return;
     if (catById(entry.cat)?.group !== 'Desejos') return;
 
     desireSpent += entry.amount;
-    if (entry._d >= 1 && entry._d <= monthDays) {
+    if (entry._y === year && entry._m === month && entry._d >= 1 && entry._d <= monthDays) {
       desireDaily[entry._d - 1] += entry.amount;
     }
   });

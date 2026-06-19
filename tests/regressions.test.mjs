@@ -84,6 +84,50 @@ function legacyIdFor(value) {
 }
 
 {
+  const now = new Date('2026-06-19T17:00:00');
+  const settings = {
+    ...baseSettings,
+    balanceAnchorAt: '2026-06-19T12:00:00.000Z',
+    cycleStartDay: 20,
+    cycleWeekendRule: 'previousBusinessDay'
+  };
+  const data = {
+    '2026-5-19': [income(7300, { status: 'realized', createdAt: '2026-06-19T16:00:00.000Z' })],
+    '2026-5-25': [expense(100, { status: 'forecast' })],
+    '2026-6-19': [expense(200, { status: 'forecast' })],
+    '2026-6-20': [expense(300, { status: 'forecast' })]
+  };
+  const snapshot = currentMonthCash(data, settings, now);
+
+  assert.equal(snapshot.cycleStart, '2026-06-19');
+  assert.equal(snapshot.cycleEnd, '2026-07-19');
+  assert.equal(snapshot.cycleElapsedDays, 1);
+  assert.equal(snapshot.cycleTotalDays, 31);
+  assert.equal(snapshot.dueExpenses, 300);
+  assert.equal(snapshot.freeToSpend, 8000);
+}
+
+{
+  const now = new Date('2026-06-19T17:00:00');
+  const settings = {
+    ...baseSettings,
+    balanceAnchorAt: '2026-06-19T12:00:00.000Z',
+    cycleStartDay: 20,
+    cycleWeekendRule: 'fixedDay',
+    cycleStartOverrides: ['2026-06-19']
+  };
+  const data = {
+    '2026-5-19': [income(7300, { status: 'realized', createdAt: '2026-06-19T16:00:00.000Z' })],
+    '2026-6-10': [expense(500, { status: 'forecast' })]
+  };
+  const snapshot = currentMonthCash(data, settings, now);
+
+  assert.equal(snapshot.cycleStart, '2026-06-19');
+  assert.equal(snapshot.dueExpenses, 500);
+  assert.equal(snapshot.freeToSpend, 7800);
+}
+
+{
   const now = new Date('2026-06-18T15:00:00');
   const data = {
     '2026-5-18': [expense(100)],

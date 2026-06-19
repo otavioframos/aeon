@@ -21,6 +21,9 @@ export const DOW = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
 export const DEFAULT_SETTINGS: Settings = {
   currentBalance: 0,
   balanceAnchorAt: undefined,
+  cycleStartDay: 20,
+  cycleWeekendRule: 'previousBusinessDay',
+  cycleStartOverrides: [],
   salary: 7000,
   essenciais: 50,
   desejos: 20,

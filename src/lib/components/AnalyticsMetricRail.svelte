@@ -14,7 +14,7 @@
   export let trendRows: TrendRow[];
   export let investmentTotal = 0;
 
-  $: periodDays = scope === 'year' ? daysInYear(year) : daysInMonth(year, scopeMonth);
+  $: periodDays = hero.periodDays || (scope === 'year' ? daysInYear(year) : daysInMonth(year, scopeMonth));
   $: dailyThreshold = (scope === 'year' ? settings.salary * 12 : settings.salary) / Math.max(1, periodDays);
   $: paceOk = hero.projected <= hero.budget;
   $: referenceIncome = scope === 'year' ? settings.salary * 12 : settings.salary;

@@ -124,7 +124,7 @@
   let hero: HeroModel = heroModel(scopedData, scope, year, scopeMonth, settings);
 
   $: cashSnapshot = currentMonthCash(data, settings);
-  $: scopedData = getScopeData(data, year, scope, scopeMonth);
+  $: scopedData = getScopeData(data, year, scope, scopeMonth, settings);
   $: previousScopedData = getPrevScopeData(data, year, scope, scopeMonth);
   $: rankItems = buildRankItems(scopedData, previousScopedData, rankMode);
   $: reserve = reserveModel(data, year);
@@ -566,6 +566,14 @@
     saveSettings();
   }
 
+  function registerPayday() {
+    const today = todayISO();
+    const cycleStartOverrides = Array.from(new Set([...(settings.cycleStartOverrides || []), today])).sort();
+    settings = { ...settings, cycleStartOverrides };
+    saveSettings();
+    flash('payday registered');
+  }
+
   function applyTheme(accentColor: string) {
     Object.entries(themeVars(accentColor)).forEach(([keyName, value]) => {
       document.documentElement.style.setProperty(keyName, value);
@@ -756,6 +764,7 @@
   onExportCSV={exportCSV}
   onImportDataFile={importDataFile}
   onResetYear={resetYear}
+  onRegisterPayday={registerPayday}
   {apkHref}
   showApkDownload={!isNativeShell}
 />

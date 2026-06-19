@@ -1,3 +1,4 @@
+import { currentCashCycle, isDateInCycle } from './cashCycle';
 import { entriesIn } from './finance';
 import { dateIndex } from './transactions';
 import type { CashSnapshot, DatedEntry, LedgerData, ProjectionMonth, Settings, TransactionStatus } from './types';
@@ -88,11 +89,18 @@ function addSigned(total: { income: number; expenses: number }, entry: DatedEntr
 }
 
 export function currentMonthCash(data: LedgerData, settings: Settings, now = new Date()): CashSnapshot {
-  const today = todayParts(now);
+  const cycle = currentCashCycle(settings, now);
   const totals = { income: 0, expenses: 0 };
   let receivedIncome = 0;
   let spentExpenses = 0;
-  entriesIn(data, (year, month) => year === today.year && month === today.month).forEach((entry) => {
+
+  entriesIn(data, () => true).forEach((entry) => {
+    if (!isDateInCycle(entry._y, entry._m, entry._d, cycle)) {
+      if (isPostAnchorRealizedIncome(entry, settings, now)) receivedIncome += entry.amount;
+      if (isPostAnchorRealizedExpense(entry, settings, now)) spentExpenses += entry.amount;
+      return;
+    }
+
     if (isStillDue(entry, now)) {
       addSigned(totals, entry);
       return;
@@ -106,6 +114,10 @@ export function currentMonthCash(data: LedgerData, settings: Settings, now = new
   return {
     anchorBalance,
     realBalance,
+    cycleStart: cycle.start,
+    cycleEnd: cycle.end,
+    cycleElapsedDays: cycle.elapsedDays,
+    cycleTotalDays: cycle.totalDays,
     receivedIncome,
     spentExpenses,
     expectedIncome: totals.income,

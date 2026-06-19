@@ -3,6 +3,7 @@ export type TransactionStatus = 'realized' | 'forecast';
 export type Scope = 'month' | 'year';
 export type RankMode = 'cat' | 'group';
 export type SafetyLevel = 'green' | 'yellow' | 'red';
+export type CycleWeekendRule = 'previousBusinessDay' | 'fixedDay' | 'nextBusinessDay';
 
 export interface Category {
   id: string;
@@ -45,6 +46,9 @@ export type LedgerData = Record<string, Entry[]>;
 export interface Settings {
   currentBalance: number;
   balanceAnchorAt?: string;
+  cycleStartDay: number;
+  cycleWeekendRule: CycleWeekendRule;
+  cycleStartOverrides: string[];
   salary: number;
   essenciais: number;
   desejos: number;
@@ -69,11 +73,24 @@ export interface Aggregate {
 export interface CashSnapshot {
   anchorBalance: number;
   realBalance: number;
+  cycleStart: string;
+  cycleEnd: string;
+  cycleElapsedDays: number;
+  cycleTotalDays: number;
   receivedIncome: number;
   spentExpenses: number;
   expectedIncome: number;
   dueExpenses: number;
   freeToSpend: number;
+}
+
+export interface CashCycle {
+  start: string;
+  end: string;
+  startIndex: number;
+  endIndex: number;
+  elapsedDays: number;
+  totalDays: number;
 }
 
 export interface ProjectionMonth {
@@ -147,8 +164,10 @@ export interface HeroModel {
   burn: number;
   budget: number;
   dayLabel: string;
+  elapsedDays: number;
   markerPos: number;
   pacePct: number;
+  periodDays: number;
   projected: number;
   savings: number;
   levelColor: string;

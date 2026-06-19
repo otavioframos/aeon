@@ -1,3 +1,4 @@
+import { currentCashCycle, isDateInCycle } from './cashCycle';
 import { catById } from './categories';
 import { MONTHS, aggregate, daysInMonth, daysInYear, entriesIn, monthAgg } from './finance';
 import type {
@@ -14,7 +15,16 @@ import type {
   TrendRow
 } from './types';
 
-export function getScopeData(currentData: LedgerData, currentYear: number, currentScope: Scope, currentScopeMonth: number) {
+function isCurrentMonthScope(currentYear: number, currentScope: Scope, currentScopeMonth: number, now = new Date()) {
+  return currentScope === 'month' && currentYear === now.getFullYear() && currentScopeMonth === now.getMonth();
+}
+
+export function getScopeData(currentData: LedgerData, currentYear: number, currentScope: Scope, currentScopeMonth: number, currentSettings?: Settings) {
+  if (currentSettings && isCurrentMonthScope(currentYear, currentScope, currentScopeMonth)) {
+    const cycle = currentCashCycle(currentSettings);
+    return aggregate(entriesIn(currentData, (y, m, d) => isDateInCycle(y, m, d, cycle)));
+  }
+
   return currentScope === 'year'
     ? aggregate(entriesIn(currentData, (y) => y === currentYear))
     : aggregate(entriesIn(currentData, (y, m) => y === currentYear && m === currentScopeMonth));
@@ -96,9 +106,16 @@ export function heroModel(current: Aggregate, currentScope: Scope, currentYear: 
     total = daysInYear(currentYear);
     dayLabel = 'por dia (ano)';
   } else {
-    total = daysInMonth(currentYear, currentScopeMonth);
-    elapsed = currentYear === today.getFullYear() && currentScopeMonth === today.getMonth() ? today.getDate() : total;
-    dayLabel = 'por dia';
+    if (isCurrentMonthScope(currentYear, currentScope, currentScopeMonth, today)) {
+      const cycle = currentCashCycle(currentSettings, today);
+      total = cycle.totalDays;
+      elapsed = cycle.elapsedDays;
+      dayLabel = 'por dia (ciclo)';
+    } else {
+      total = daysInMonth(currentYear, currentScopeMonth);
+      elapsed = currentYear === today.getFullYear() && currentScopeMonth === today.getMonth() ? today.getDate() : total;
+      dayLabel = 'por dia';
+    }
   }
 
   const burn = current.exp / elapsed;
@@ -116,8 +133,10 @@ export function heroModel(current: Aggregate, currentScope: Scope, currentYear: 
     burn,
     budget,
     dayLabel,
+    elapsedDays: elapsed,
     markerPos,
     pacePct: Math.min(100, pacePct),
+    periodDays: total,
     projected,
     savings: current.inc > 0 ? ((current.inc - current.exp) / current.inc) * 100 : 0,
     levelColor: level === 'green' ? 'var(--green)' : level === 'yellow' ? 'var(--yellow)' : 'var(--red)'
