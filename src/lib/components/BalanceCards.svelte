@@ -1,7 +1,8 @@
 <script lang="ts">
   import { fmtNum } from '$lib/finance';
+  import type { DailyRoomModel } from '$lib/types';
 
-  export let accountBalance = 0;
+  export let dailyRoom: DailyRoomModel;
   export let reserveBalance = 0;
   export let reserveSeries: number[] = [];
   export let reserveTarget = 0;
@@ -12,9 +13,11 @@
   const padTop = 4;
   const padBottom = 5;
 
-  $: accountLabel = formatMoneyLabel(accountBalance);
+  $: dailyRoomLabel = formatMoneyLabel(dailyRoom.perDay);
+  $: paceRoomLabel = formatMoneyLabel(Math.abs(dailyRoom.paceRoomToday));
+  $: paceCopy = dailyRoom.paceRoomToday >= 0 ? `${paceRoomLabel} left today` : `${paceRoomLabel} over pace`;
   $: reserveLabel = formatMoneyLabel(reserveBalance);
-  $: accountSize = valueSize(accountLabel, 32, 19);
+  $: dailyRoomSize = valueSize(dailyRoomLabel, 32, 19);
   $: reserveSize = valueSize(reserveLabel, 24, 18);
   $: cleanSeries = reserveSeries.length ? reserveSeries : [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
   $: maxChartValue = Math.max(1, reserveTarget, ...cleanSeries);
@@ -46,13 +49,15 @@
 </script>
 
 <section class="balance-cards" aria-label="Balances">
-  <article class="balance-card account-card">
+  <article class="balance-card account-card daily-room-card">
     <svg class="balance-arrow" viewBox="0 0 24 24"><path d="M7 17L17 7" /><path d="M9 7h8v8" /></svg>
-    <h2>Real Balance</h2>
-    <div class="balance-value account-value" style:--balance-value-size={`${accountSize}px`}>
+    <span class:on={dailyRoom.status === 'on pace'} class="daily-room-chip">{dailyRoom.status}</span>
+    <h2>Daily Room</h2>
+    <div class="balance-value account-value" style:--balance-value-size={`${dailyRoomSize}px`}>
       <span>R$</span>
-      <strong>{accountLabel}</strong>
+      <strong>{dailyRoomLabel}</strong>
     </div>
+    <p class="daily-room-sub">{paceCopy}</p>
   </article>
 
   <article class="balance-card reserve-balance-card">

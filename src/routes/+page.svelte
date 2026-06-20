@@ -16,7 +16,7 @@
   import VelaSplash from '$lib/components/VelaSplash.svelte';
   import MeshBackground from '$lib/MeshBackground.svelte';
   import { currentMonthCash, projectionMonths, resolvedStatus } from '$lib/cashModel';
-  import { catById, isPortfolioCategory } from '$lib/categories';
+  import { catById } from '$lib/categories';
   import { DEFAULT_SETTINGS, aggregate, entriesIn, key, monthAgg, parseAmount } from '$lib/finance';
   import {
     collectDataYears,
@@ -34,7 +34,9 @@
   import { syncVelaWidget } from '$lib/nativeWidget';
   import {
     allocationModel,
+    appliedMoneyTotal,
     buildRankItems,
+    dailyRoomModel,
     getDailySpendData,
     getPrevScopeData,
     getScopeData,
@@ -49,6 +51,7 @@
     AllocationModel,
     BackupPayload,
     CashSnapshot,
+    DailyRoomModel,
     DatedEntry,
     EntryType,
     HeatCell,
@@ -120,10 +123,11 @@
   let recentMovements: DatedEntry[] = [];
   let yearlyData: Aggregate = aggregate([]);
   let reserveCard: ReserveCardModel = reserveCardModel(data, year);
-  let scopedPortfolioContribution = 0;
+  let appliedMoneyContribution = 0;
   let projections: ProjectionMonth[] = [];
   let allocation: AllocationModel = allocationModel(scopedData);
   let hero: HeroModel = heroModel(dailySpendData, scope, year, scopeMonth, settings);
+  let dailyRoom: DailyRoomModel = dailyRoomModel(cashSnapshot, hero);
 
   $: cashSnapshot = currentMonthCash(data, settings);
   $: scopedData = getScopeData(data, year, scope, scopeMonth, settings);
@@ -140,12 +144,13 @@
   $: recentMovements = recentRealMovements(entriesIn(data, () => true)).slice(0, 4);
   $: yearlyData = aggregate(entriesIn(data, (y) => y === year));
   $: reserveCard = reserveCardModel(data, year);
-  $: scopedPortfolioContribution = portfolioTotalEntries(
+  $: appliedMoneyContribution = appliedMoneyTotal(
     entriesIn(data, (y, m) => (scope === 'year' ? y === year : y === year && m === scopeMonth))
   );
   $: projections = projectionMonths(data, year, settings);
   $: allocation = allocationModel(scopedData);
   $: hero = heroModel(dailySpendData, scope, year, scopeMonth, settings);
+  $: dailyRoom = dailyRoomModel(cashSnapshot, hero);
   $: if (browser) applyTheme(settings.accentColor);
 
   onMount(() => {
@@ -368,13 +373,6 @@
         return true;
       })
     );
-  }
-
-  function portfolioTotalEntries(entries: DatedEntry[]) {
-    return entries.reduce((sum, entry) => {
-      if (entry.type !== 'out' || !isPortfolioCategory(entry.cat) || resolvedStatus(entry) !== 'realized') return sum;
-      return sum + entry.amount;
-    }, 0);
   }
 
   function knownYears(extraYears: number[] = []) {
@@ -709,7 +707,7 @@
     onOpenDatePicker={openDatePicker}
   />
   <BalanceCards
-    accountBalance={cashSnapshot.realBalance}
+    {dailyRoom}
     reserveBalance={reserveCard.balance}
     reserveSeries={reserveCard.series}
     reserveTarget={reserveCard.target}
@@ -749,7 +747,7 @@
   {trendRows}
   {heatCells}
   {hero}
-  portfolioContribution={scopedPortfolioContribution}
+  portfolioContribution={appliedMoneyContribution}
   {projections}
   onOpenSettings={() => (setOpen = true)}
   onOpenFlux={() => (dashOpen = false)}

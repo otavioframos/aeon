@@ -40,14 +40,30 @@ export function listDataYears() {
 export function loadSettings(): Settings {
   try {
     const raw = localStorage.getItem(SET_KEY);
-    return raw ? { ...DEFAULT_SETTINGS, ...JSON.parse(raw) } : { ...DEFAULT_SETTINGS };
+    const parsed = raw ? JSON.parse(raw) : {};
+    const settings = normalizeSettings(parsed);
+    if (raw && settings.balanceAnchorAt && !parsed.balanceAnchorAt) {
+      localStorage.setItem(SET_KEY, JSON.stringify(settings));
+    }
+    return settings;
   } catch {
     return { ...DEFAULT_SETTINGS };
   }
 }
 
 export function saveSettings(settings: Settings) {
-  localStorage.setItem(SET_KEY, JSON.stringify(settings));
+  localStorage.setItem(SET_KEY, JSON.stringify(normalizeSettings(settings)));
+}
+
+export function normalizeSettings(settings: Partial<Settings> = {}, now = new Date()): Settings {
+  const normalized = { ...DEFAULT_SETTINGS, ...settings };
+  normalized.currentBalance = Number(normalized.currentBalance) || 0;
+
+  if (normalized.currentBalance > 0 && !normalized.balanceAnchorAt) {
+    return { ...normalized, balanceAnchorAt: now.toISOString() };
+  }
+
+  return normalized;
 }
 
 export function createBackupPayload(year: number, data: LedgerData, settings: Settings): BackupPayload {
@@ -87,7 +103,7 @@ export function normalizeBackup(payload: BackupPayload): NormalizedBackup {
     year,
     data,
     years,
-    settings: payload.settings
+    settings: payload.settings ? normalizeSettings(payload.settings) : payload.settings
   };
 }
 

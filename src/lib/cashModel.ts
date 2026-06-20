@@ -3,6 +3,9 @@ import { entriesIn } from './finance';
 import { dateIndex } from './transactions';
 import type { CashSnapshot, DatedEntry, LedgerData, ProjectionMonth, Settings, TransactionStatus } from './types';
 
+const DAY_MS = 86400000;
+const PAID_INVOICE_WINDOW_DAYS = 7;
+
 function todayParts(now = new Date()) {
   return {
     year: now.getFullYear(),
@@ -23,24 +26,34 @@ function balanceAnchor(settings: Settings) {
   };
 }
 
-function createdTime(entry: DatedEntry) {
+function dateOnly(year: number, month: number, day: number) {
+  return new Date(year, month, day);
+}
+
+function parseCycleDate(value: string) {
+  const [year, month, day] = value.split('-').map(Number);
+  return dateOnly(year, month - 1, day);
+}
+
+function createdTime(entry: DatedEntry, now = new Date()) {
   if (entry.createdAt) {
     const parsed = new Date(entry.createdAt).getTime();
     if (Number.isFinite(parsed)) return parsed;
   }
 
-  return createdTimeFromLegacyId(entry.id);
+  return createdTimeFromLegacyId(entry.id, now);
 }
 
-function createdTimeFromLegacyId(id: string) {
+function createdTimeFromLegacyId(id: string, now = new Date()) {
   const match = id.match(/^[0-9a-z]{8,9}/i);
   if (!match) return null;
+  const maxReasonableTime = now.getTime() + 31 * DAY_MS;
 
   for (const size of [9, 8]) {
     const prefix = match[0].slice(0, size);
     if (prefix.length !== size) continue;
     const parsed = Number.parseInt(prefix, 36);
-    if (parsed >= Date.UTC(2020, 0, 1) && parsed <= Date.UTC(2100, 0, 1)) return parsed;
+    if (parsed >= Date.UTC(2020, 0, 1) && parsed <= maxReasonableTime) return parsed;
   }
 
   return null;
@@ -51,8 +64,29 @@ export function resolvedStatus(entry: DatedEntry, now = new Date()): Transaction
   return dateIndex(entry._y, entry._m, entry._d) > todayParts(now).index ? 'forecast' : 'realized';
 }
 
-function isStillDue(entry: DatedEntry, now = new Date()) {
-  return resolvedStatus(entry, now) === 'forecast' && dateIndex(entry._y, entry._m, entry._d) >= todayParts(now).index;
+function isCoveredByPaidInvoiceWindow(entry: DatedEntry, settings: Settings, now = new Date()) {
+  if (entry.type !== 'out' || resolvedStatus(entry, now) !== 'forecast' || settings.currentBalance <= 0) return false;
+
+  const cycle = currentCashCycle(settings, now);
+  if (!isDateInCycle(entry._y, entry._m, entry._d, cycle)) return false;
+
+  const cycleStart = parseCycleDate(cycle.start);
+  const entryDate = dateOnly(entry._y, entry._m, entry._d);
+  const daysAfterCycleStart = Math.round((entryDate.getTime() - cycleStart.getTime()) / DAY_MS);
+  if (daysAfterCycleStart < 0 || daysAfterCycleStart > PAID_INVOICE_WINDOW_DAYS) return false;
+
+  const entryCreatedTime = createdTime(entry, now);
+  const anchor = balanceAnchor(settings);
+  const anchorTime = anchor?.time ?? cycleStart.getTime();
+  return !entryCreatedTime || entryCreatedTime < anchorTime;
+}
+
+function isStillDue(entry: DatedEntry, settings: Settings, now = new Date()) {
+  return (
+    resolvedStatus(entry, now) === 'forecast' &&
+    dateIndex(entry._y, entry._m, entry._d) >= todayParts(now).index &&
+    !isCoveredByPaidInvoiceWindow(entry, settings, now)
+  );
 }
 
 function isRealizedExpenseThroughToday(entry: DatedEntry, now = new Date()) {
@@ -65,22 +99,22 @@ function isRealizedIncomeThroughToday(entry: DatedEntry, now = new Date()) {
   return entry.type === 'in' && resolvedStatus(entry, now) === 'realized' && dateIndex(entry._y, entry._m, entry._d) <= today.index;
 }
 
-function isAfterBalanceAnchor(entry: DatedEntry, settings: Settings) {
+function isAfterBalanceAnchor(entry: DatedEntry, settings: Settings, now = new Date()) {
   const anchor = balanceAnchor(settings);
-  if (!anchor) return true;
+  if (!anchor) return settings.currentBalance <= 0;
 
-  const entryCreatedTime = createdTime(entry);
+  const entryCreatedTime = createdTime(entry, now);
   if (entryCreatedTime) return entryCreatedTime >= anchor.time;
 
   return dateIndex(entry._y, entry._m, entry._d) > anchor.index;
 }
 
 function isPostAnchorRealizedExpense(entry: DatedEntry, settings: Settings, now = new Date()) {
-  return isRealizedExpenseThroughToday(entry, now) && isAfterBalanceAnchor(entry, settings);
+  return isRealizedExpenseThroughToday(entry, now) && isAfterBalanceAnchor(entry, settings, now);
 }
 
 function isPostAnchorRealizedIncome(entry: DatedEntry, settings: Settings, now = new Date()) {
-  return isRealizedIncomeThroughToday(entry, now) && isAfterBalanceAnchor(entry, settings);
+  return isRealizedIncomeThroughToday(entry, now) && isAfterBalanceAnchor(entry, settings, now);
 }
 
 function addSigned(total: { income: number; expenses: number }, entry: DatedEntry) {
@@ -101,7 +135,7 @@ export function currentMonthCash(data: LedgerData, settings: Settings, now = new
       return;
     }
 
-    if (isStillDue(entry, now)) {
+    if (isStillDue(entry, settings, now)) {
       addSigned(totals, entry);
       return;
     }
@@ -138,7 +172,7 @@ export function projectionMonths(data: LedgerData, year: number, settings: Setti
       let receivedIncome = 0;
       let spentExpenses = 0;
       entriesIn(data, (entryYear, entryMonth) => entryYear === year && entryMonth === month).forEach((entry) => {
-        if (isStillDue(entry, now)) {
+        if (isStillDue(entry, settings, now)) {
           addSigned(totals, entry);
           return;
         }

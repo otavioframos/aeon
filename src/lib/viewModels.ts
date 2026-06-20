@@ -6,7 +6,9 @@ import type { TransactionStatus } from './types';
 import type {
   Aggregate,
   AllocationModel,
+  CashSnapshot,
   CategoryFilterItem,
+  DailyRoomModel,
   DatedEntry,
   HeatCell,
   HeroModel,
@@ -33,6 +35,35 @@ function isRealizedThrough(entryYear: number, entryMonth: number, entryDay: numb
 function isLivingEntry(categoryId: string) {
   const group = catById(categoryId)?.group;
   return group === 'Essenciais' || group === 'Desejos';
+}
+
+export function dailyRoomModel(cash: CashSnapshot, hero: HeroModel): DailyRoomModel {
+  const remainingDays = Math.max(1, cash.cycleTotalDays - cash.cycleElapsedDays + 1);
+  const elapsedDays = Math.max(1, hero.elapsedDays);
+  const periodDays = Math.max(1, hero.periodDays);
+  const dailyTarget = hero.budget / periodDays;
+  const spentSoFar = hero.burn * elapsedDays;
+  const paceRoomToday = dailyTarget * elapsedDays - spentSoFar;
+  const remainingLivingBudget = Math.max(0, hero.budget - spentSoFar);
+  const roomBase = Math.max(0, Math.min(remainingLivingBudget, cash.freeToSpend));
+
+  return {
+    perDay: roomBase / remainingDays,
+    paceRoomToday,
+    remainingDays,
+    remainingLivingBudget,
+    roomBase,
+    status: paceRoomToday >= -0.005 ? 'on pace' : 'attention'
+  };
+}
+
+export function appliedMoneyTotal(entries: DatedEntry[], now = new Date()) {
+  return entries.reduce((sum, entry) => {
+    if (entry.type !== 'out') return sum;
+    if (!isPortfolioCategory(entry.cat) && !isReserveCategory(entry.cat)) return sum;
+    if (!isRealizedThrough(entry._y, entry._m, entry._d, entry.status, now)) return sum;
+    return sum + entry.amount;
+  }, 0);
 }
 
 export function getScopeData(

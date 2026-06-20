@@ -148,6 +148,15 @@ export interface ReserveCardModel {
   runway: number;
 }
 
+export interface DailyRoomModel {
+  perDay: number;
+  paceRoomToday: number;
+  remainingDays: number;
+  remainingLivingBudget: number;
+  roomBase: number;
+  status: 'on pace' | 'attention';
+}
+
 export interface TrendRow {
   month: string;
   incPct: number;

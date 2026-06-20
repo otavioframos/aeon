@@ -9,9 +9,12 @@ const server = await createServer({
 
 const { currentMonthCash, projectionMonths } = await server.ssrLoadModule('/src/lib/cashModel.ts');
 const { catById, isPortfolioCategory } = await server.ssrLoadModule('/src/lib/categories.ts');
-const { normalizeBackup } = await server.ssrLoadModule('/src/lib/storage.ts');
+const { entriesIn } = await server.ssrLoadModule('/src/lib/finance.ts');
+const { normalizeBackup, normalizeSettings } = await server.ssrLoadModule('/src/lib/storage.ts');
 const {
   categoryFilterItems,
+  appliedMoneyTotal,
+  dailyRoomModel,
   getCategoryEntries,
   getDailySpendData,
   getScopeData,
@@ -94,6 +97,63 @@ function legacyIdFor(value) {
 }
 
 {
+  const now = new Date('2026-06-20T12:00:00');
+  const settings = { ...baseSettings, currentBalance: 4137.41, balanceAnchorAt: undefined };
+  const data = {
+    '2026-5-19': [
+      income(7300, { status: 'realized', createdAt: '2026-06-19T16:00:00.000Z' }),
+      expense(2100, { cat: 'reserva', status: 'realized', createdAt: '2026-06-19T18:54:48.280Z' })
+    ],
+    '2026-5-20': [expense(89.5, { cat: 'mercado', status: 'realized', createdAt: '2026-06-20T17:31:10.823Z' })]
+  };
+  const snapshot = currentMonthCash(data, settings, now);
+
+  assert.equal(snapshot.realBalance, 4137.41);
+  assert.equal(snapshot.freeToSpend, 4137.41);
+}
+
+{
+  const migrated = normalizeSettings({ ...baseSettings, currentBalance: 4137.41, balanceAnchorAt: undefined }, new Date('2026-06-20T12:00:00Z'));
+
+  assert.equal(migrated.currentBalance, 4137.41);
+  assert.equal(migrated.balanceAnchorAt, '2026-06-20T12:00:00.000Z');
+}
+
+{
+  const cash = {
+    anchorBalance: 4137.41,
+    realBalance: 4137.41,
+    cycleStart: '2026-06-19',
+    cycleEnd: '2026-07-19',
+    cycleElapsedDays: 2,
+    cycleTotalDays: 31,
+    receivedIncome: 0,
+    spentExpenses: 0,
+    expectedIncome: 0,
+    dueExpenses: 0,
+    freeToSpend: 4137.41
+  };
+  const hero = {
+    burn: 146.47,
+    budget: 4900,
+    dayLabel: 'por dia (ciclo)',
+    elapsedDays: 2,
+    markerPos: 100,
+    pacePct: 93,
+    periodDays: 31,
+    projected: 4540.57,
+    savings: 0,
+    levelColor: 'var(--green)'
+  };
+  const room = dailyRoomModel(cash, hero);
+
+  assert.equal(room.remainingDays, 30);
+  assert.equal(room.perDay.toFixed(2), '137.91');
+  assert.equal(room.paceRoomToday.toFixed(2), '23.19');
+  assert.equal(room.status, 'on pace');
+}
+
+{
   const now = new Date('2026-06-19T17:00:00');
   const settings = {
     ...baseSettings,
@@ -113,8 +173,8 @@ function legacyIdFor(value) {
   assert.equal(snapshot.cycleEnd, '2026-07-19');
   assert.equal(snapshot.cycleElapsedDays, 1);
   assert.equal(snapshot.cycleTotalDays, 31);
-  assert.equal(snapshot.dueExpenses, 300);
-  assert.equal(snapshot.freeToSpend, 8000);
+  assert.equal(snapshot.dueExpenses, 200);
+  assert.equal(snapshot.freeToSpend, 8100);
 }
 
 {
@@ -135,6 +195,41 @@ function legacyIdFor(value) {
   assert.equal(snapshot.cycleStart, '2026-06-19');
   assert.equal(snapshot.dueExpenses, 500);
   assert.equal(snapshot.freeToSpend, 7800);
+}
+
+{
+  const now = new Date('2026-06-20T12:00:00');
+  const settings = {
+    ...baseSettings,
+    currentBalance: 4137.41,
+    balanceAnchorAt: '2026-06-19T12:00:00.000Z',
+    cycleStartDay: 20,
+    cycleWeekendRule: 'previousBusinessDay',
+    cycleStartOverrides: ['2026-06-19']
+  };
+  const data = {
+    '2026-5-25': [
+      expense(3562.44, { id: 'qu7qsvgsw2dk', cat: 'contas', desc: 'Fatura cartão (resto, fora parcelas)', status: 'forecast' }),
+      expense(474, { cat: 'graduacao', desc: 'Curso UXDI/FIAP', status: 'forecast', installmentIndex: 4, installmentCount: 10 }),
+      expense(419.99, { cat: 'lazer', desc: 'Presente Bebel - Tênis', status: 'forecast', installmentIndex: 1, installmentCount: 2 }),
+      expense(181.52, { cat: 'lazer', desc: 'Cool Kids Club - roupa', status: 'forecast', installmentIndex: 1, installmentCount: 3 }),
+      expense(167, { id: 'ombec0jfd45y', cat: 'lazer', desc: 'Perfume cheiroso na marra', status: 'forecast', installmentIndex: 1, installmentCount: 2 }),
+      expense(84.5, { cat: 'lazer', desc: 'Phebo Santalum', status: 'forecast', installmentIndex: 1, installmentCount: 2 })
+    ],
+    '2026-6-25': [
+      expense(474, { cat: 'graduacao', desc: 'Curso UXDI/FIAP', status: 'forecast', installmentIndex: 5, installmentCount: 10 }),
+      expense(419.99, { cat: 'lazer', desc: 'Presente Bebel - Tênis', status: 'forecast', installmentIndex: 2, installmentCount: 2 }),
+      expense(181.52, { cat: 'lazer', desc: 'Cool Kids Club - roupa', status: 'forecast', installmentIndex: 2, installmentCount: 3 }),
+      expense(167, { cat: 'lazer', desc: 'Perfume cheiroso na marra', status: 'forecast', installmentIndex: 2, installmentCount: 2 }),
+      expense(84.5, { cat: 'lazer', desc: 'Phebo Santalum', status: 'forecast', installmentIndex: 2, installmentCount: 2 })
+    ]
+  };
+  const snapshot = currentMonthCash(data, settings, now);
+  const julyProjection = projectionMonths(data, 2026, settings, now)[6];
+
+  assert.equal(snapshot.dueExpenses, 0);
+  assert.equal(snapshot.freeToSpend, 4137.41);
+  assert.equal(julyProjection.expenses, 1327.01);
 }
 
 {
@@ -186,11 +281,13 @@ function legacyIdFor(value) {
   const reserveEntries = getCategoryEntries(data, 2026, 'month', 5, settings, 'reserva', now);
   const reserve = reserveModel(data, 2026, now);
   const reserveCard = reserveCardModel(data, 2026, now);
+  const appliedTotal = appliedMoneyTotal(entriesIn(data, () => true), now);
 
   assert.equal(catById('reserva').group, 'Reserva');
   assert.equal(isPortfolioCategory('reserva'), false);
   assert.equal(scoped.byGroup.Reserva, 2100);
   assert.equal(scoped.byGroup.Investimentos, 500);
+  assert.equal(appliedTotal, 2600);
   assert.deepEqual(
     filters.map((item) => item.id),
     ['reserva', 'mercado', 'invest']
