@@ -2699,6 +2699,15 @@ input[type="file"] {
   margin-bottom: 8px;
 }
 
+.reserve-card-sub {
+  margin-top: 6px;
+  color: rgba(106, 120, 115, 0.78);
+  font-size: 10px;
+  font-weight: 300;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
 .mini-dialog-backdrop {
   position: fixed;
   inset: 0;
@@ -3030,6 +3039,7 @@ input[type="file"] {
 }
 
 .aeon-hero h2,
+.aeon-category-drilldown h2,
 .yearly-rhythm h2,
 .year-sheet-head span {
   color: var(--color-text);
@@ -3233,6 +3243,111 @@ input[type="file"] {
   line-height: 1.2;
   white-space: nowrap;
   overflow: hidden;
+}
+
+.aeon-category-drilldown {
+  margin-top: 18px;
+}
+
+.aeon-tags-head h2 {
+  font-family: var(--font-accent);
+  font-size: 22px;
+  font-weight: 400;
+}
+
+.aeon-tags-head span {
+  margin-left: auto;
+  max-width: 54%;
+  overflow: hidden;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.aeon-tag-row {
+  display: flex;
+  gap: 8px;
+  margin: 8px -18px 0;
+  padding: 0 18px 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.aeon-tag-row::-webkit-scrollbar {
+  display: none;
+}
+
+.aeon-tag-chip {
+  flex: 0 0 auto;
+  min-width: 116px;
+  min-height: 42px;
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  align-items: center;
+  column-gap: 8px;
+  padding: 7px 10px;
+  border: var(--stroke-default) solid var(--color-stroke);
+  border-radius: var(--radius-pill);
+  background: rgba(217, 217, 217, 0.03);
+  color: var(--color-text);
+  text-align: left;
+}
+
+.aeon-tag-chip.active {
+  border-color: var(--color-text);
+  background: var(--color-text);
+  color: var(--color-text-inverse);
+}
+
+.tag-icon {
+  grid-row: 1 / span 2;
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+}
+
+.tag-icon svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+}
+
+.aeon-tag-chip span:not(.tag-icon) {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 11px;
+  font-weight: 300;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.aeon-tag-chip strong {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 10px;
+  font-weight: 300;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.aeon-filter-list {
+  margin-top: 6px;
+  border-top: var(--stroke-default) solid var(--color-stroke);
+  border-bottom: var(--stroke-hairline) solid rgba(47, 55, 52, 0.55);
+}
+
+.aeon-filter-list .sheet-movement-row {
+  border-bottom: var(--stroke-hairline) solid rgba(47, 55, 52, 0.5);
+}
+
+.aeon-filter-list .sheet-movement-row:last-child {
+  border-bottom: 0;
 }
 
 .yearly-rhythm {

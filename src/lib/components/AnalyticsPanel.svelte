@@ -5,8 +5,10 @@
   import AnalyticsMetricRail from '$lib/components/AnalyticsMetricRail.svelte';
   import BottomNav from '$lib/components/BottomNav.svelte';
   import { entriesIn, fmtNum, MONTHS, MONTHS_FULL, monthAgg } from '$lib/finance';
+  import { categoryFilterItems, getCategoryEntries } from '$lib/viewModels';
   import type {
     Aggregate,
+    CategoryFilterItem,
     DatedEntry,
     HeatCell,
     HeroModel,
@@ -39,6 +41,7 @@
 
   let yearSheetOpen = false;
   let expandedMonth: number | null = null;
+  let selectedCategoryId = '';
   let wasOpen = false;
 
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -86,6 +89,14 @@
       lineSize: line.length > 22 ? 8 : line.length > 18 ? 9 : 10
     };
   });
+  $: categoryFilters = categoryFilterItems(scopedData);
+  $: selectedFilter = categoryFilters.find((item) => item.id === selectedCategoryId) || null;
+  $: filteredCategoryEntries = selectedCategoryId
+    ? getCategoryEntries(data, year, scope, scopeMonth, settings, selectedCategoryId)
+    : [];
+  $: if (selectedCategoryId && !categoryFilters.some((item) => item.id === selectedCategoryId)) {
+    selectedCategoryId = '';
+  }
 
   $: if (browser && open && !wasOpen) {
     wasOpen = true;
@@ -115,6 +126,10 @@
     const installment =
       entry.installmentIndex && entry.installmentCount ? ` · ${entry.installmentIndex}/${entry.installmentCount}` : '';
     return `${category?.name || 'Other'} · ${entry._d} ${monthNames[entry._m].toLowerCase()}${installment}`;
+  }
+
+  function toggleCategoryFilter(item: CategoryFilterItem) {
+    selectedCategoryId = selectedCategoryId === item.id ? '' : item.id;
   }
 </script>
 
@@ -167,6 +182,61 @@
         </article>
       {/each}
     </section>
+
+    {#if categoryFilters.length}
+      <section class:open={!!selectedFilter} class="aeon-category-drilldown" aria-label="Category drilldown">
+        <div class="aeon-section-head aeon-tags-head">
+          <h2>Tags</h2>
+          {#if selectedFilter}
+            <span>{selectedFilter.name} · R$ {fmtNum(selectedFilter.amount).replace(',00', '')}</span>
+          {:else}
+            <span>tap to inspect</span>
+          {/if}
+        </div>
+
+        <div class="aeon-tag-row" aria-label="Spending tags">
+          {#each categoryFilters as item}
+            <button
+              class:active={selectedCategoryId === item.id}
+              class="aeon-tag-chip"
+              type="button"
+              aria-pressed={selectedCategoryId === item.id}
+              on:click={() => toggleCategoryFilter(item)}
+            >
+              <span class="tag-icon">
+                {#if item.icon}<svg viewBox="0 0 24 24">{@html item.icon}</svg>{/if}
+              </span>
+              <span>{item.name}</span>
+              <strong>R$ {fmtNum(item.amount).replace(',00', '')}</strong>
+            </button>
+          {/each}
+        </div>
+
+        {#if selectedFilter}
+          <div class="aeon-filter-list">
+            {#if filteredCategoryEntries.length}
+              {#each filteredCategoryEntries as entry}
+                {@const category = catById(entry.cat)}
+                <div class="sheet-movement-row">
+                  <span class="movement-icon">
+                    {#if category}<svg viewBox="0 0 24 24">{@html category.icon}</svg>{/if}
+                  </span>
+                  <span class="movement-main">
+                    <span class="movement-title">{titleFor(entry)}</span>
+                    <span class="movement-sub">{subtitleFor(entry)}</span>
+                  </span>
+                  <span class:pos={entry.type === 'in'} class:neg={entry.type === 'out'} class="movement-amount">
+                    {entry.type === 'in' ? '+' : '−'}R$ {fmtNum(entry.amount)}
+                  </span>
+                </div>
+              {/each}
+            {:else}
+              <div class="year-empty">No {selectedFilter.name} movements in this range.</div>
+            {/if}
+          </div>
+        {/if}
+      </section>
+    {/if}
 
     <section class="yearly-rhythm">
       <div class="aeon-section-head">

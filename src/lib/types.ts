@@ -113,6 +113,14 @@ export interface RankItem {
   deltaClass: 'up' | 'down';
 }
 
+export interface CategoryFilterItem {
+  id: string;
+  name: string;
+  group: string;
+  icon: string;
+  amount: number;
+}
+
 export interface ReserveModel {
   areaPath: string;
   beLabel: string;
@@ -131,6 +139,13 @@ export interface ReserveModel {
   target: number;
   targetY: number;
   width: number;
+}
+
+export interface ReserveCardModel {
+  balance: number;
+  series: number[];
+  target: number;
+  runway: number;
 }
 
 export interface TrendRow {

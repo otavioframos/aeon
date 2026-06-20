@@ -1,16 +1,19 @@
 import { currentCashCycle, isDateInCycle } from './cashCycle';
-import { catById } from './categories';
+import { catById, isPortfolioCategory, isReserveCategory } from './categories';
 import { MONTHS, aggregate, daysInMonth, daysInYear, entriesIn, monthAgg } from './finance';
 import { dateIndex } from './transactions';
 import type { TransactionStatus } from './types';
 import type {
   Aggregate,
   AllocationModel,
+  CategoryFilterItem,
+  DatedEntry,
   HeatCell,
   HeroModel,
   LedgerData,
   RankItem,
   RankMode,
+  ReserveCardModel,
   ReserveModel,
   Scope,
   Settings,
@@ -53,6 +56,56 @@ export function getScopeData(
   return currentScope === 'year'
     ? aggregate(entriesIn(currentData, (y) => y === currentYear))
     : aggregate(entriesIn(currentData, (y, m) => y === currentYear && m === currentScopeMonth));
+}
+
+export function getScopedEntries(
+  currentData: LedgerData,
+  currentYear: number,
+  currentScope: Scope,
+  currentScopeMonth: number,
+  currentSettings?: Settings,
+  now = new Date()
+) {
+  if (currentSettings && isCurrentMonthScope(currentYear, currentScope, currentScopeMonth, now)) {
+    const cycle = currentCashCycle(currentSettings, now);
+    const todayIndex = dateIndex(now.getFullYear(), now.getMonth(), now.getDate());
+    return entriesIn(currentData, (y, m, d) => isDateInCycle(y, m, d, cycle) && dateIndex(y, m, d) <= todayIndex).filter(
+      (entry) => entry.status !== 'forecast'
+    );
+  }
+
+  return currentScope === 'year'
+    ? entriesIn(currentData, (y) => y === currentYear)
+    : entriesIn(currentData, (y, m) => y === currentYear && m === currentScopeMonth);
+}
+
+export function categoryFilterItems(current: Aggregate): CategoryFilterItem[] {
+  return Object.entries(current.byCat)
+    .map(([id, amount]) => {
+      const category = catById(id);
+      return {
+        id,
+        amount,
+        name: category?.name || 'Other',
+        group: category?.group || 'Outros',
+        icon: category?.icon || ''
+      };
+    })
+    .sort((a, b) => b.amount - a.amount || a.name.localeCompare(b.name));
+}
+
+export function getCategoryEntries(
+  currentData: LedgerData,
+  currentYear: number,
+  currentScope: Scope,
+  currentScopeMonth: number,
+  currentSettings: Settings,
+  categoryId: string,
+  now = new Date()
+): DatedEntry[] {
+  return getScopedEntries(currentData, currentYear, currentScope, currentScopeMonth, currentSettings, now)
+    .filter((entry) => entry.type === 'out' && entry.cat === categoryId)
+    .sort((a, b) => b._y - a._y || b._m - a._m || b._d - a._d || b.id.localeCompare(a.id));
 }
 
 export function getDailySpendData(
@@ -203,13 +256,20 @@ export function heroModel(
   };
 }
 
-export function reserveModel(currentData: LedgerData, currentYear: number): ReserveModel | null {
-  const reserveEntries = entriesIn(currentData, (y) => y === currentYear).filter((entry) => entry.type === 'out' && entry.cat === 'reserva');
+export function reserveModel(currentData: LedgerData, currentYear: number, now = new Date()): ReserveModel | null {
+  const reserveEntries = entriesIn(currentData, (y) => y === currentYear).filter(
+    (entry) => entry.type === 'out' && entry.cat === 'reserva' && isRealizedThrough(entry._y, entry._m, entry._d, entry.status, now)
+  );
   const reserveTotal = reserveEntries.reduce((sum, entry) => sum + entry.amount, 0);
   let totalExp = 0;
   const expMonths: Record<number, number> = {};
   entriesIn(currentData, (y) => y === currentYear).forEach((entry) => {
-    if (entry.type === 'out') {
+    if (
+      entry.type === 'out' &&
+      !isReserveCategory(entry.cat) &&
+      !isPortfolioCategory(entry.cat) &&
+      isRealizedThrough(entry._y, entry._m, entry._d, entry.status, now)
+    ) {
       totalExp += entry.amount;
       expMonths[entry._m] = (expMonths[entry._m] || 0) + entry.amount;
     }
@@ -271,6 +331,25 @@ export function reserveModel(currentData: LedgerData, currentYear: number): Rese
     target,
     targetY,
     width
+  };
+}
+
+export function reserveCardModel(currentData: LedgerData, currentYear: number, now = new Date()): ReserveCardModel {
+  const reserve = reserveModel(currentData, currentYear, now);
+  let cumulative = 0;
+  const series = Array.from({ length: 12 }, (_, month) => {
+    const monthReserve = entriesIn(currentData, (entryYear, entryMonth) => entryYear === currentYear && entryMonth === month)
+      .filter((entry) => entry.type === 'out' && isReserveCategory(entry.cat) && isRealizedThrough(entry._y, entry._m, entry._d, entry.status, now))
+      .reduce((sum, entry) => sum + entry.amount, 0);
+    cumulative += monthReserve;
+    return cumulative;
+  });
+
+  return {
+    balance: reserve?.reserveTotal ?? cumulative,
+    series,
+    target: reserve?.target ?? 0,
+    runway: reserve?.runway ?? 0
   };
 }
 

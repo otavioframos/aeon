@@ -40,6 +40,7 @@
     getScopeData,
     heatModel,
     heroModel,
+    reserveCardModel,
     reserveModel,
     trendModel
   } from '$lib/viewModels';
@@ -56,6 +57,7 @@
     MovementEditPayload,
     RankItem,
     RankMode,
+    ReserveCardModel,
     ReserveModel,
     Scope,
     Settings,
@@ -117,9 +119,7 @@
   let currentYearMovements: DatedEntry[] = [];
   let recentMovements: DatedEntry[] = [];
   let yearlyData: Aggregate = aggregate([]);
-  let investmentBalance = 0;
-  let investmentSeries: number[] = [];
-  let investmentTarget = 0;
+  let reserveCard: ReserveCardModel = reserveCardModel(data, year);
   let scopedPortfolioContribution = 0;
   let projections: ProjectionMonth[] = [];
   let allocation: AllocationModel = allocationModel(scopedData);
@@ -139,9 +139,7 @@
   $: currentYearMovements = sortMovements(entriesIn(data, () => true));
   $: recentMovements = recentRealMovements(entriesIn(data, () => true)).slice(0, 4);
   $: yearlyData = aggregate(entriesIn(data, (y) => y === year));
-  $: investmentBalance = portfolioTotalEntries(entriesIn(data, (y) => y === year));
-  $: investmentSeries = monthlyInvestmentSeries(data, year);
-  $: investmentTarget = settings.salary * (settings.investimentos / 100);
+  $: reserveCard = reserveCardModel(data, year);
   $: scopedPortfolioContribution = portfolioTotalEntries(
     entriesIn(data, (y, m) => (scope === 'year' ? y === year : y === year && m === scopeMonth))
   );
@@ -370,14 +368,6 @@
         return true;
       })
     );
-  }
-
-  function monthlyInvestmentSeries(sourceData: LedgerData, currentYear: number) {
-    let cumulative = 0;
-    return Array.from({ length: 12 }, (_, month) => {
-      cumulative += portfolioTotalEntries(entriesIn(sourceData, (entryYear, entryMonth) => entryYear === currentYear && entryMonth === month));
-      return cumulative;
-    });
   }
 
   function portfolioTotalEntries(entries: DatedEntry[]) {
@@ -718,7 +708,13 @@
     onSubmit={addEntry}
     onOpenDatePicker={openDatePicker}
   />
-  <BalanceCards accountBalance={cashSnapshot.realBalance} {investmentBalance} {investmentSeries} {investmentTarget} />
+  <BalanceCards
+    accountBalance={cashSnapshot.realBalance}
+    reserveBalance={reserveCard.balance}
+    reserveSeries={reserveCard.series}
+    reserveTarget={reserveCard.target}
+    reserveRunway={reserveCard.runway}
+  />
   <MovementsPreview entries={recentMovements} onOpen={() => (movementOpen = true)} onEdit={openMovementEditor} />
   <BottomNav active="flux" onOpenAeon={openDashboard} onOpenFlux={() => (dashOpen = false)} onOpenSettings={() => (setOpen = true)} />
 </div>

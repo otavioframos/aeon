@@ -29,7 +29,7 @@ export const CATS: Category[] = [
     id: 'reserva',
     name: 'Reserve',
     icon: '<path d="M3 7h18v12H3z"/><path d="M3 7l9-4 9 4"/><circle cx="12" cy="13" r="2"/>',
-    group: 'Investimentos'
+    group: 'Reserva'
   },
   {
     id: 'invest',
@@ -76,6 +76,7 @@ export const CATS: Category[] = [
 ];
 
 const PORTFOLIO_CATEGORY_IDS = new Set(['invest']);
+const RESERVE_CATEGORY_IDS = new Set(['reserva']);
 
 export function catById(id: string) {
   return CATS.find((category) => category.id === id);
@@ -83,4 +84,8 @@ export function catById(id: string) {
 
 export function isPortfolioCategory(id: string) {
   return PORTFOLIO_CATEGORY_IDS.has(id);
+}
+
+export function isReserveCategory(id: string) {
+  return RESERVE_CATEGORY_IDS.has(id);
 }

@@ -8,8 +8,17 @@ const server = await createServer({
 });
 
 const { currentMonthCash, projectionMonths } = await server.ssrLoadModule('/src/lib/cashModel.ts');
+const { catById, isPortfolioCategory } = await server.ssrLoadModule('/src/lib/categories.ts');
 const { normalizeBackup } = await server.ssrLoadModule('/src/lib/storage.ts');
-const { getDailySpendData, getScopeData, heroModel } = await server.ssrLoadModule('/src/lib/viewModels.ts');
+const {
+  categoryFilterItems,
+  getCategoryEntries,
+  getDailySpendData,
+  getScopeData,
+  heroModel,
+  reserveCardModel,
+  reserveModel
+} = await server.ssrLoadModule('/src/lib/viewModels.ts');
 
 const baseSettings = {
   currentBalance: 1000,
@@ -155,6 +164,45 @@ function legacyIdFor(value) {
   assert.equal(hero.burn, 300);
   assert.equal(hero.budget, 4900);
   assert.equal(hero.periodDays, 31);
+}
+
+{
+  const now = new Date('2026-06-19T17:00:00');
+  const settings = {
+    ...baseSettings,
+    cycleStartDay: 20,
+    cycleWeekendRule: 'previousBusinessDay'
+  };
+  const data = {
+    '2026-5-19': [
+      expense(2100, { cat: 'reserva' }),
+      expense(500, { cat: 'invest' }),
+      expense(1000, { cat: 'mercado' })
+    ],
+    '2026-5-25': [expense(900, { cat: 'reserva', status: 'forecast' })]
+  };
+  const scoped = getScopeData(data, 2026, 'month', 5, settings, now);
+  const filters = categoryFilterItems(scoped);
+  const reserveEntries = getCategoryEntries(data, 2026, 'month', 5, settings, 'reserva', now);
+  const reserve = reserveModel(data, 2026, now);
+  const reserveCard = reserveCardModel(data, 2026, now);
+
+  assert.equal(catById('reserva').group, 'Reserva');
+  assert.equal(isPortfolioCategory('reserva'), false);
+  assert.equal(scoped.byGroup.Reserva, 2100);
+  assert.equal(scoped.byGroup.Investimentos, 500);
+  assert.deepEqual(
+    filters.map((item) => item.id),
+    ['reserva', 'mercado', 'invest']
+  );
+  assert.equal(reserveEntries.length, 1);
+  assert.equal(reserveEntries[0].amount, 2100);
+  assert.equal(reserve.reserveTotal, 2100);
+  assert.equal(reserve.target, 6000);
+  assert.equal(reserve.runway, 2.1);
+  assert.equal(reserveCard.balance, 2100);
+  assert.equal(reserveCard.target, 6000);
+  assert.deepEqual(reserveCard.series.slice(0, 6), [0, 0, 0, 0, 0, 2100]);
 }
 
 {
