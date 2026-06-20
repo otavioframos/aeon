@@ -17,6 +17,7 @@
   import MeshBackground from '$lib/MeshBackground.svelte';
   import { currentMonthCash, projectionMonths, resolvedStatus } from '$lib/cashModel';
   import { catById } from '$lib/categories';
+  import { exportFile } from '$lib/fileExport';
   import { DEFAULT_SETTINGS, aggregate, entriesIn, key, monthAgg, parseAmount } from '$lib/finance';
   import {
     collectDataYears,
@@ -578,12 +579,12 @@
     dashOpen = true;
   }
 
-  function exportData() {
+  async function exportData() {
     const payload = createBackupPayload(year, data, settings);
-    downloadFile(`fluxo_backup_${year}.json`, JSON.stringify(payload, null, 2), 'application/json');
+    await downloadFile(`fluxo_backup_${year}.json`, JSON.stringify(payload, null, 2), 'application/json');
   }
 
-  function exportCSV() {
+  async function exportCSV() {
     const rows: { y: number; m: number; d: number; entry: DatedEntry }[] = [];
     Object.entries(collectDataYears(year, data)).forEach(([rawYear, yearData]) => {
       const itemYear = Number(rawYear);
@@ -609,17 +610,16 @@
         .map(esc)
         .join(sep);
     });
-    downloadFile(`fluxo_${year}.csv`, `\uFEFF${[header].concat(lines).join('\r\n')}`, 'text/csv;charset=utf-8');
+    await downloadFile(`fluxo_${year}.csv`, `\uFEFF${[header].concat(lines).join('\r\n')}`, 'text/csv;charset=utf-8');
   }
 
-  function downloadFile(filename: string, contents: string, type: string) {
-    const blob = new Blob([contents], { type });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement('a');
-    anchor.href = url;
-    anchor.download = filename;
-    anchor.click();
-    URL.revokeObjectURL(url);
+  async function downloadFile(filename: string, contents: string, type: string) {
+    try {
+      await exportFile(filename, contents, type);
+      flash('export ready');
+    } catch {
+      showNotice('Export failed', 'Vela could not create the file. Try again or export from the web version.');
+    }
   }
 
   function importDataFile(event: Event) {

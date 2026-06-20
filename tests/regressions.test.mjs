@@ -9,6 +9,7 @@ const server = await createServer({
 
 const { currentMonthCash, projectionMonths } = await server.ssrLoadModule('/src/lib/cashModel.ts');
 const { catById, isPortfolioCategory } = await server.ssrLoadModule('/src/lib/categories.ts');
+const { safeExportFilename } = await server.ssrLoadModule('/src/lib/fileExport.ts');
 const { entriesIn } = await server.ssrLoadModule('/src/lib/finance.ts');
 const { normalizeBackup, normalizeSettings } = await server.ssrLoadModule('/src/lib/storage.ts');
 const {
@@ -64,6 +65,11 @@ function income(amount, overrides = {}) {
 
 function legacyIdFor(value) {
   return `${new Date(value).getTime().toString(36)}zzzz`;
+}
+
+{
+  assert.equal(safeExportFilename('fluxo:backup/2026?.json'), 'fluxo_backup_2026_.json');
+  assert.equal(safeExportFilename(''), 'vela-export.txt');
 }
 
 {

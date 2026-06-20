@@ -17,6 +17,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         supportRequestWindowFeature(Window.FEATURE_NO_TITLE);
+        registerPlugin(VelaExportPlugin.class);
         registerPlugin(VelaWidgetPlugin.class);
         enableImmersiveCanvas();
         super.onCreate(savedInstanceState);
