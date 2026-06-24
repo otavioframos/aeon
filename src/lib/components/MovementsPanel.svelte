@@ -3,11 +3,14 @@
   import DatePicker from '$lib/components/DatePicker.svelte';
   import { fmtNum, MONTHS_FULL, parseAmount } from '$lib/finance';
   import { dateLabel } from '$lib/transactions';
-  import type { DatedEntry, MovementEditPayload } from '$lib/types';
+  import { isSmoothedPaceActive } from '$lib/viewModels';
+  import type { DatedEntry, MovementEditPayload, Settings } from '$lib/types';
 
   export let open = false;
   export let entries: DatedEntry[] = [];
   export let editingEntry: DatedEntry | null = null;
+  export let settings: Settings;
+  export let now = new Date();
   export let onClose: () => void;
   export let onSave: (entry: DatedEntry, payload: MovementEditPayload) => void;
   export let onDelete: (entry: DatedEntry, scope: 'single' | 'group') => boolean | Promise<boolean>;
@@ -208,7 +211,12 @@
                 </span>
                 <span class="movement-main">
                   <span class="movement-title">{titleFor(entry)}</span>
-                  <span class="movement-sub">{subtitleFor(entry)}</span>
+                  <span class="movement-meta">
+                    <span class="movement-sub">{subtitleFor(entry)}</span>
+                    {#if isSmoothedPaceActive(entry, settings, now)}
+                      <span class="movement-pill">Smoothed</span>
+                    {/if}
+                  </span>
                 </span>
                 <span class:pos={entry.type === 'in'} class:neg={entry.type === 'out'} class="movement-amount">
                   {entry.type === 'in' ? '+' : '−'}R$ {fmtNum(entry.amount)}

@@ -1,5 +1,6 @@
 export type EntryType = 'in' | 'out';
 export type TransactionStatus = 'realized' | 'forecast';
+export type PaceImpact = 'normal' | 'diluted';
 export type Scope = 'month' | 'year';
 export type RankMode = 'cat' | 'group';
 export type SafetyLevel = 'green' | 'yellow' | 'red';
@@ -25,6 +26,7 @@ export interface Entry {
   installmentGroupId?: string;
   installmentIndex?: number;
   installmentCount?: number;
+  paceImpact?: PaceImpact;
 }
 
 export interface DatedEntry extends Entry {
@@ -151,10 +153,20 @@ export interface ReserveCardModel {
 export interface DailyRoomModel {
   perDay: number;
   paceRoomToday: number;
+  dailyThreshold: number;
+  realMaxToday: number;
+  todayScope: number;
+  todayLeft: number;
   remainingDays: number;
   remainingLivingBudget: number;
   roomBase: number;
   status: 'on pace' | 'attention';
+}
+
+export interface TodaySpendModel {
+  total: number;
+  living: number;
+  actualLiving: number;
 }
 
 export interface TrendRow {

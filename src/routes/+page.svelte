@@ -17,6 +17,7 @@
   import MeshBackground from '$lib/MeshBackground.svelte';
   import { currentMonthCash, projectionMonths, resolvedStatus } from '$lib/cashModel';
   import { catById } from '$lib/categories';
+  import { transactionStatusLabel } from '$lib/copy';
   import { exportFile } from '$lib/fileExport';
   import { DEFAULT_SETTINGS, aggregate, entriesIn, key, monthAgg, parseAmount } from '$lib/finance';
   import {
@@ -45,6 +46,7 @@
     heroModel,
     reserveCardModel,
     reserveModel,
+    todaySpendModel,
     trendModel
   } from '$lib/viewModels';
   import type {
@@ -65,13 +67,15 @@
     ReserveModel,
     Scope,
     Settings,
+    TodaySpendModel,
     TrendRow,
     ProjectionMonth
   } from '$lib/types';
 
   type MeshHandle = { triggerWave: (type: EntryType) => void };
 
-  let year = new Date().getFullYear();
+  let appNow = new Date();
+  let year = appNow.getFullYear();
   let data: LedgerData = {};
   let settings: Settings = { ...DEFAULT_SETTINGS };
   let amount = '';
@@ -79,8 +83,9 @@
   let selCat = '';
   let purchaseDate = todayISO();
   let installmentCount = 1;
+  let paceImpact: 'normal' | 'diluted' = 'normal';
   let scope: Scope = 'month';
-  let scopeMonth = new Date().getMonth();
+  let scopeMonth = appNow.getMonth();
   let rankMode: RankMode = 'cat';
   let selectedDay: number | null = null;
   let controlOpen = false;
@@ -106,12 +111,13 @@
   let amountInput: HTMLInputElement | undefined;
   let mesh: MeshHandle;
   let nativeBackListener: { remove: () => Promise<void> } | null = null;
+  let nativeStateListener: { remove: () => Promise<void> } | null = null;
   let isNativeShell = false;
   let showApkBanner = false;
   const apkHref = `${base}/vela.apk`;
   const apkBannerKey = 'vela-apk-banner-dismissed';
 
-  let cashSnapshot: CashSnapshot = currentMonthCash(data, settings);
+  let cashSnapshot: CashSnapshot = currentMonthCash(data, settings, appNow);
   let scopedData: Aggregate = aggregate([]);
   let dailySpendData: Aggregate = aggregate([]);
   let previousScopedData: Aggregate = aggregate([]);
@@ -123,44 +129,66 @@
   let currentYearMovements: DatedEntry[] = [];
   let recentMovements: DatedEntry[] = [];
   let yearlyData: Aggregate = aggregate([]);
-  let reserveCard: ReserveCardModel = reserveCardModel(data, year);
+  let reserveCard: ReserveCardModel = reserveCardModel(data, year, appNow);
   let appliedMoneyContribution = 0;
   let projections: ProjectionMonth[] = [];
   let allocation: AllocationModel = allocationModel(scopedData);
-  let hero: HeroModel = heroModel(dailySpendData, scope, year, scopeMonth, settings);
-  let dailyRoom: DailyRoomModel = dailyRoomModel(cashSnapshot, hero);
+  let hero: HeroModel = heroModel(dailySpendData, scope, year, scopeMonth, settings, appNow);
+  let todaySpend: TodaySpendModel = todaySpendModel(data, settings, appNow);
+  let dailyRoom: DailyRoomModel = dailyRoomModel(cashSnapshot, hero, todaySpend.actualLiving);
 
-  $: cashSnapshot = currentMonthCash(data, settings);
-  $: scopedData = getScopeData(data, year, scope, scopeMonth, settings);
-  $: dailySpendData = getDailySpendData(data, year, scope, scopeMonth, settings);
+  $: cashSnapshot = currentMonthCash(data, settings, appNow);
+  $: scopedData = getScopeData(data, year, scope, scopeMonth, settings, appNow);
+  $: dailySpendData = getDailySpendData(data, year, scope, scopeMonth, settings, appNow);
   $: previousScopedData = getPrevScopeData(data, year, scope, scopeMonth);
   $: rankItems = buildRankItems(scopedData, previousScopedData, rankMode);
-  $: reserve = reserveModel(data, year);
+  $: reserve = reserveModel(data, year, appNow);
   $: trendRows = trendModel(data, year, scope, scopeMonth);
   $: heatCells = heatModel(data, year, scope, scopeMonth);
   $: dayEntries = selectedDay
     ? entriesIn(data, (y, m, d) => y === year && m === scopeMonth && d === selectedDay)
     : [];
   $: currentYearMovements = sortMovements(entriesIn(data, () => true));
-  $: recentMovements = recentRealMovements(entriesIn(data, () => true)).slice(0, 4);
+  $: recentMovements = recentRealMovements(entriesIn(data, () => true), appNow).slice(0, 4);
   $: yearlyData = aggregate(entriesIn(data, (y) => y === year));
-  $: reserveCard = reserveCardModel(data, year);
+  $: reserveCard = reserveCardModel(data, year, appNow);
   $: appliedMoneyContribution = appliedMoneyTotal(
-    entriesIn(data, (y, m) => (scope === 'year' ? y === year : y === year && m === scopeMonth))
+    entriesIn(data, (y, m) => (scope === 'year' ? y === year : y === year && m === scopeMonth)),
+    appNow
   );
-  $: projections = projectionMonths(data, year, settings);
+  $: projections = projectionMonths(data, year, settings, appNow);
   $: allocation = allocationModel(scopedData);
-  $: hero = heroModel(dailySpendData, scope, year, scopeMonth, settings);
-  $: dailyRoom = dailyRoomModel(cashSnapshot, hero);
+  $: hero = heroModel(dailySpendData, scope, year, scopeMonth, settings, appNow);
+  $: todaySpend = todaySpendModel(data, settings, appNow);
+  $: dailyRoom = dailyRoomModel(cashSnapshot, hero, todaySpend.actualLiving);
   $: if (browser) applyTheme(settings.accentColor);
 
+  function refreshAppNow() {
+    const previousYear = appNow.getFullYear();
+    const previousMonth = appNow.getMonth();
+    const nextNow = new Date();
+    appNow = nextNow;
+
+    if (scope === 'month' && year === previousYear && scopeMonth === previousMonth && nextNow.getMonth() !== previousMonth) {
+      year = nextNow.getFullYear();
+      scopeMonth = nextNow.getMonth();
+      data = loadData(year);
+    }
+  }
+
   onMount(() => {
+    refreshAppNow();
+    const appNowTimer = setInterval(refreshAppNow, 60000);
+    document.addEventListener('visibilitychange', refreshAppNow);
     data = loadData(year);
     settings = loadSettings();
     void initializeShell();
 
     return () => {
+      clearInterval(appNowTimer);
+      document.removeEventListener('visibilitychange', refreshAppNow);
       void nativeBackListener?.remove();
+      void nativeStateListener?.remove();
     };
   });
 
@@ -206,7 +234,7 @@
   }
 
   function syncWidget() {
-    syncVelaWidget(data, settings);
+    syncVelaWidget(data, settings, appNow);
   }
 
   function openDatePicker(label: string, value: string, onSelect: (nextValue: string) => void) {
@@ -272,6 +300,8 @@
         StatusBar.show()
       ]);
 
+      nativeStateListener = await App.addListener('appStateChange', refreshAppNow);
+
       nativeBackListener = await App.addListener('backButton', () => {
         if (dialogOpen) {
           resolveDialog(false);
@@ -323,7 +353,8 @@
       cat: categoryId,
       desc: desc.trim(),
       purchaseDate: purchaseDate || todayISO(),
-      installmentCount
+      installmentCount,
+      paceImpact
     });
     commitEntries(generated);
     mesh?.triggerWave(type);
@@ -332,6 +363,7 @@
     desc = '';
     selCat = '';
     installmentCount = 1;
+    paceImpact = 'normal';
     purchaseDate = todayISO();
     controlOpen = false;
   }
@@ -366,10 +398,10 @@
     return [...list].sort((a, b) => b._y - a._y || b._m - a._m || b._d - a._d || b.id.localeCompare(a.id));
   }
 
-  function recentRealMovements(list: DatedEntry[]) {
+  function recentRealMovements(list: DatedEntry[], now: Date) {
     return sortMovements(
       list.filter((entry) => {
-        if (resolvedStatus(entry) !== 'realized') return false;
+        if (resolvedStatus(entry, now) !== 'realized') return false;
         if (entry.installmentIndex && entry.installmentIndex > 1) return false;
         return true;
       })
@@ -601,7 +633,7 @@
       const category = catById(row.entry.cat);
       const dateStr = `${String(row.d).padStart(2, '0')}/${String(row.m + 1).padStart(2, '0')}/${row.y}`;
       const purchaseDate = row.entry.purchaseDate || '';
-      const status = resolvedStatus(row.entry);
+      const status = transactionStatusLabel(resolvedStatus(row.entry, appNow));
       const tipo = row.entry.type === 'in' ? 'Entrada' : 'Saída';
       const value = `${row.entry.type === 'in' ? '' : '-'}${row.entry.amount.toFixed(2).replace('.', ',')}`;
       const installment =
@@ -701,6 +733,7 @@
     bind:selCat
     bind:purchaseDate
     bind:installmentCount
+    bind:paceImpact
     bind:controlOpen
     bind:amountInput
     onSubmit={addEntry}
@@ -708,12 +741,13 @@
   />
   <BalanceCards
     {dailyRoom}
+    {todaySpend}
     reserveBalance={reserveCard.balance}
     reserveSeries={reserveCard.series}
     reserveTarget={reserveCard.target}
     reserveRunway={reserveCard.runway}
   />
-  <MovementsPreview entries={recentMovements} onOpen={() => (movementOpen = true)} onEdit={openMovementEditor} />
+  <MovementsPreview entries={recentMovements} {settings} now={appNow} onOpen={() => (movementOpen = true)} onEdit={openMovementEditor} />
   <BottomNav active="flux" onOpenAeon={openDashboard} onOpenFlux={() => (dashOpen = false)} onOpenSettings={() => (setOpen = true)} />
 </div>
 
@@ -721,6 +755,8 @@
   bind:open={movementOpen}
   bind:editingEntry={editingMovement}
   entries={currentYearMovements}
+  {settings}
+  now={appNow}
   onClose={() => {
     movementOpen = false;
     editingMovement = null;

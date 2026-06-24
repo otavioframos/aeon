@@ -70,7 +70,7 @@
       dot: '#5f638b'
     },
     {
-      name: 'Investment',
+      name: 'Saved',
       group: 'Investimentos',
       targetPct: settings.investimentos,
       dot: '#58610e',
@@ -149,12 +149,12 @@
     </div>
 
     <section class="aeon-hero">
-      <h2>Projection estimate</h2>
+      <h2>Projected cycle end</h2>
       <div class="aeon-balance">R$ {fmtNum(projectionClosing)}</div>
       <div class="aeon-subline">
         <span>opening: R$ {fmtNum(projectionOpening).replace(',00', '')}</span>
         <i></i>
-        <span>forecast: +R$ {fmtNum(projectionIncome).replace(',00', '')} / −R$ {fmtNum(projectionExpenses).replace(',00', '')}</span>
+        <span>expected: +R$ {fmtNum(projectionIncome).replace(',00', '')} / due −R$ {fmtNum(projectionExpenses).replace(',00', '')}</span>
       </div>
     </section>
 
@@ -240,7 +240,7 @@
 
     <section class="yearly-rhythm">
       <div class="aeon-section-head">
-        <h2>Yearly Rythm</h2>
+        <h2>Yearly Rhythm</h2>
         <span>income / expenses</span>
         <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" /></svg>
       </div>

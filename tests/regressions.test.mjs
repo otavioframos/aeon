@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { createServer } from 'vite';
 
 const server = await createServer({
@@ -9,9 +10,11 @@ const server = await createServer({
 
 const { currentMonthCash, projectionMonths } = await server.ssrLoadModule('/src/lib/cashModel.ts');
 const { catById, isPortfolioCategory } = await server.ssrLoadModule('/src/lib/categories.ts');
+const { dailyRoomCopy, transactionStatusLabel } = await server.ssrLoadModule('/src/lib/copy.ts');
 const { safeExportFilename } = await server.ssrLoadModule('/src/lib/fileExport.ts');
 const { entriesIn } = await server.ssrLoadModule('/src/lib/finance.ts');
 const { normalizeBackup, normalizeSettings } = await server.ssrLoadModule('/src/lib/storage.ts');
+const { buildTransactionEntries } = await server.ssrLoadModule('/src/lib/transactions.ts');
 const {
   categoryFilterItems,
   appliedMoneyTotal,
@@ -20,8 +23,10 @@ const {
   getDailySpendData,
   getScopeData,
   heroModel,
+  isSmoothedPaceActive,
   reserveCardModel,
-  reserveModel
+  reserveModel,
+  todaySpendModel
 } = await server.ssrLoadModule('/src/lib/viewModels.ts');
 
 const baseSettings = {
@@ -65,6 +70,75 @@ function income(amount, overrides = {}) {
 
 function legacyIdFor(value) {
   return `${new Date(value).getTime().toString(36)}zzzz`;
+}
+
+{
+  const appCss = readFileSync(new URL('../src/app.css', import.meta.url), 'utf8');
+  const appPage = readFileSync(new URL('../src/routes/+page.svelte', import.meta.url), 'utf8');
+
+  assert.match(
+    appCss,
+    /\.balance-cards\s*\{[\s\S]*grid-template-columns:\s*minmax\(0,\s*2fr\)\s+minmax\(0,\s*1fr\);/
+  );
+  assert.match(appPage, /let appNow = new Date\(\);/);
+  assert.match(appPage, /function refreshAppNow\(\)/);
+  assert.match(appPage, /setInterval\(refreshAppNow,/);
+  assert.match(appPage, /document\.addEventListener\('visibilitychange', refreshAppNow\)/);
+  assert.match(appPage, /currentMonthCash\(data, settings, appNow\)/);
+  assert.match(appPage, /todaySpendModel\(data, settings, appNow\)/);
+}
+
+{
+  assert.equal(transactionStatusLabel('forecast'), 'Upcoming');
+  assert.equal(transactionStatusLabel('realized'), 'Already happened');
+  assert.deepEqual(
+    dailyRoomCopy({
+      recoveryLabel: '119',
+      todayScopeLabel: '112',
+      spentTodayLabel: '89',
+      leftTodayLabel: '23',
+      normalDayLabel: '158',
+      cycleDeltaLabel: '39',
+      isCycleCompromised: true,
+      isOnPace: true
+    }),
+    {
+      todayTitle: "Today's Allowance",
+      todayValue: '112',
+      todaySpendLine: 'R$ 89 spent · R$ 23 left',
+      todayNormalLine: 'R$ 158 on a normal day',
+      cycleTitle: 'Adjusted Daily',
+      cycleValue: '119/day',
+      cycleSupport: 'avg for the rest of the cycle',
+      cycleDeltaLine: '-R$ 39/day'
+    }
+  );
+}
+
+{
+  const settings = {
+    ...baseSettings,
+    cycleStartDay: 20,
+    cycleWeekendRule: 'previousBusinessDay',
+    cycleStartOverrides: ['2026-06-19']
+  };
+  const smoothedEntry = {
+    id: 'smoothed-varal',
+    amount: 287.58,
+    type: 'out',
+    cat: 'contas',
+    desc: 'Varal lavanderia',
+    status: 'realized',
+    paceImpact: 'diluted',
+    _y: 2026,
+    _m: 5,
+    _d: 21
+  };
+  const normalEntry = { ...smoothedEntry, id: 'normal-market', paceImpact: 'normal' };
+
+  assert.equal(isSmoothedPaceActive(smoothedEntry, settings, new Date('2026-06-23T12:00:00')), true);
+  assert.equal(isSmoothedPaceActive(normalEntry, settings, new Date('2026-06-23T12:00:00')), false);
+  assert.equal(isSmoothedPaceActive(smoothedEntry, settings, new Date('2026-07-20T12:00:00')), false);
 }
 
 {
@@ -151,12 +225,234 @@ function legacyIdFor(value) {
     savings: 0,
     levelColor: 'var(--green)'
   };
-  const room = dailyRoomModel(cash, hero);
+  const room = dailyRoomModel(cash, hero, 89.5);
 
   assert.equal(room.remainingDays, 30);
   assert.equal(room.perDay.toFixed(2), '137.91');
   assert.equal(room.paceRoomToday.toFixed(2), '23.19');
+  assert.equal(room.dailyThreshold.toFixed(2), '158.06');
+  assert.equal(room.todayScope.toFixed(2), '112.69');
+  assert.equal(room.todayLeft.toFixed(2), '23.19');
   assert.equal(room.status, 'on pace');
+}
+
+{
+  const cash = {
+    anchorBalance: 5000,
+    realBalance: 5000,
+    cycleStart: '2026-06-19',
+    cycleEnd: '2026-07-19',
+    cycleElapsedDays: 2,
+    cycleTotalDays: 31,
+    receivedIncome: 0,
+    spentExpenses: 0,
+    expectedIncome: 0,
+    dueExpenses: 0,
+    freeToSpend: 5000
+  };
+  const hero = {
+    burn: 0,
+    budget: 4900,
+    dayLabel: 'por dia (ciclo)',
+    elapsedDays: 2,
+    markerPos: 100,
+    pacePct: 0,
+    periodDays: 31,
+    projected: 0,
+    savings: 0,
+    levelColor: 'var(--green)'
+  };
+  const room = dailyRoomModel(cash, hero, 0);
+
+  assert.equal(room.realMaxToday.toFixed(2), '316.13');
+  assert.equal(room.todayScope.toFixed(2), '158.06');
+  assert.equal(room.todayLeft.toFixed(2), '158.06');
+}
+
+{
+  const cash = {
+    anchorBalance: 3304.2,
+    realBalance: 3304.2,
+    cycleStart: '2026-06-19',
+    cycleEnd: '2026-07-19',
+    cycleElapsedDays: 5,
+    cycleTotalDays: 31,
+    receivedIncome: 0,
+    spentExpenses: 0,
+    expectedIncome: 0,
+    dueExpenses: 0,
+    freeToSpend: 3304.2
+  };
+  const hero = {
+    burn: 0,
+    budget: 4900,
+    dayLabel: 'por dia (ciclo)',
+    elapsedDays: 5,
+    markerPos: 100,
+    pacePct: 0,
+    periodDays: 31,
+    projected: 0,
+    savings: 0,
+    levelColor: 'var(--green)'
+  };
+  const room = dailyRoomModel(cash, hero, 0);
+
+  assert.equal(room.perDay.toFixed(2), '122.38');
+  assert.equal(room.dailyThreshold.toFixed(2), '158.06');
+  assert.equal(room.realMaxToday.toFixed(2), '790.32');
+  assert.equal(room.todayScope.toFixed(2), '122.38');
+  assert.equal(room.todayLeft.toFixed(2), '122.38');
+}
+
+{
+  const generated = buildTransactionEntries({
+    totalAmount: 780,
+    type: 'out',
+    cat: 'mercado',
+    desc: 'Bulk market',
+    purchaseDate: '2026-06-20',
+    installmentCount: 1,
+    paceImpact: 'diluted'
+  });
+
+  assert.equal(generated.length, 1);
+  assert.equal(generated[0].entry.amount, 780);
+  assert.equal(generated[0].entry.paceImpact, 'diluted');
+}
+
+{
+  const now = new Date('2026-06-20T12:00:00');
+  const settings = {
+    ...baseSettings,
+    cycleStartDay: 20,
+    cycleWeekendRule: 'previousBusinessDay',
+    cycleStartOverrides: ['2026-06-19']
+  };
+  const data = {
+    '2026-5-20': [expense(780, { cat: 'mercado', paceImpact: 'diluted' })]
+  };
+  const dailySpend = getDailySpendData(data, 2026, 'month', 5, settings, now);
+  const todaySpend = todaySpendModel(data, settings, now);
+
+  assert.equal(dailySpend.exp.toFixed(2), '780.00');
+  assert.equal(dailySpend.byCat.mercado.toFixed(2), '780.00');
+  assert.equal(todaySpend.total.toFixed(2), '780.00');
+  assert.equal(todaySpend.actualLiving.toFixed(2), '780.00');
+  assert.equal(todaySpend.living.toFixed(2), '780.00');
+}
+
+{
+  const now = new Date('2026-07-18T12:00:00');
+  const settings = {
+    ...baseSettings,
+    cycleStartDay: 20,
+    cycleWeekendRule: 'previousBusinessDay',
+    cycleStartOverrides: ['2026-06-19']
+  };
+  const data = {
+    '2026-6-18': [expense(780, { cat: 'mercado', paceImpact: 'diluted' })]
+  };
+  const dailySpend = getDailySpendData(data, 2026, 'month', 6, settings, now);
+  const todaySpend = todaySpendModel(data, settings, now);
+
+  assert.equal(dailySpend.exp.toFixed(2), '780.00');
+  assert.equal(todaySpend.actualLiving.toFixed(2), '780.00');
+  assert.equal(todaySpend.living.toFixed(2), '780.00');
+}
+
+{
+  const now = new Date('2026-06-23T12:00:00');
+  const settings = {
+    ...baseSettings,
+    cycleStartDay: 20,
+    cycleWeekendRule: 'previousBusinessDay',
+    cycleStartOverrides: ['2026-06-19']
+  };
+  const data = {
+    '2026-5-21': [expense(287.58, { cat: 'mercado', paceImpact: 'diluted' })]
+  };
+  const dailySpend = getDailySpendData(data, 2026, 'month', 5, settings, now);
+  const hero = heroModel(dailySpend, 'month', 2026, 5, settings, now);
+  const todaySpend = todaySpendModel(data, settings, now);
+  const room = dailyRoomModel(
+    {
+      anchorBalance: 10000,
+      realBalance: 10000,
+      cycleStart: '2026-06-19',
+      cycleEnd: '2026-07-19',
+      cycleElapsedDays: 5,
+      cycleTotalDays: 31,
+      receivedIncome: 0,
+      spentExpenses: 0,
+      expectedIncome: 0,
+      dueExpenses: 0,
+      freeToSpend: 10000
+    },
+    hero,
+    todaySpend.actualLiving
+  );
+
+  assert.equal(dailySpend.exp.toFixed(2), '287.58');
+  assert.equal(todaySpend.total.toFixed(2), '0.00');
+  assert.equal(todaySpend.actualLiving.toFixed(2), '0.00');
+  assert.equal(todaySpend.living.toFixed(2), '0.00');
+  assert.equal(room.dailyThreshold.toFixed(2), '158.06');
+  assert.equal(room.paceRoomToday.toFixed(2), '502.74');
+  assert.equal(room.todayScope.toFixed(2), '158.06');
+  assert.equal(room.todayLeft.toFixed(2), '158.06');
+  assert.equal(room.perDay.toFixed(2), '170.83');
+}
+
+{
+  const now = new Date('2026-06-20T12:00:00');
+  const settings = {
+    ...baseSettings,
+    currentBalance: 3591.78,
+    cycleStartDay: 20,
+    cycleWeekendRule: 'previousBusinessDay',
+    cycleStartOverrides: ['2026-06-19']
+  };
+  const data = {
+    '2026-5-19': [
+      expense(67.67, { cat: 'pets' }),
+      expense(22.59, { cat: 'mercado' }),
+      expense(113.18, { cat: 'mercado' })
+    ],
+    '2026-5-20': [
+      expense(89.5, { cat: 'mercado' }),
+      expense(84, { cat: 'imposto' }),
+      income(500, { status: 'realized' }),
+      expense(50, { cat: 'lazer', status: 'forecast' })
+    ]
+  };
+  const dailySpend = getDailySpendData(data, 2026, 'month', 5, settings, now);
+  const hero = heroModel(dailySpend, 'month', 2026, 5, settings, now);
+  const todaySpend = todaySpendModel(data, now);
+  const room = dailyRoomModel(
+    {
+      anchorBalance: 3591.78,
+      realBalance: 3591.78,
+      cycleStart: '2026-06-19',
+      cycleEnd: '2026-07-19',
+      cycleElapsedDays: 2,
+      cycleTotalDays: 31,
+      receivedIncome: 0,
+      spentExpenses: 0,
+      expectedIncome: 0,
+      dueExpenses: 0,
+      freeToSpend: 3591.78
+    },
+    hero,
+    todaySpend.living
+  );
+
+  assert.equal(todaySpend.total.toFixed(2), '173.50');
+  assert.equal(todaySpend.living.toFixed(2), '89.50');
+  assert.equal(room.dailyThreshold.toFixed(2), '158.06');
+  assert.equal(room.realMaxToday.toFixed(2), '112.69');
+  assert.equal(room.todayScope.toFixed(2), '112.69');
+  assert.equal(room.todayLeft.toFixed(2), '23.19');
+  assert.equal(room.paceRoomToday.toFixed(2), '23.19');
 }
 
 {

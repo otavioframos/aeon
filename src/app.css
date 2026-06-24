@@ -917,6 +917,29 @@ button {
   white-space: nowrap;
 }
 
+.movement-meta {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.movement-meta .movement-sub {
+  min-width: 0;
+}
+
+.movement-pill {
+  flex: 0 0 auto;
+  border: var(--stroke-hairline) solid color-mix(in srgb, var(--color-text) 55%, transparent);
+  border-radius: var(--radius-pill);
+  padding: 1px 6px 2px;
+  color: var(--color-text);
+  font-family: var(--mono);
+  font-size: 8px;
+  line-height: 1.2;
+  opacity: 0.72;
+}
+
 .movement-amount {
   font-family: var(--mono);
   font-size: var(--fs-caption);
@@ -2597,6 +2620,55 @@ input[type="file"] {
   color: var(--color-text-inverse-deep);
 }
 
+.pace-impact-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pace-impact-trigger {
+  min-height: 34px;
+  padding: 0 8px;
+  border: var(--stroke-thin) solid rgba(47, 55, 52, 0.75);
+  border-radius: var(--radius-card);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: rgba(106, 120, 115, 0.72);
+  font-size: 10px;
+  font-weight: 300;
+}
+
+.pace-impact-trigger strong {
+  color: var(--color-text);
+  font-size: 10px;
+  font-weight: 400;
+}
+
+.pace-impact-block.open .pace-impact-trigger {
+  border-color: var(--color-stroke);
+  color: var(--color-text);
+}
+
+.pace-impact-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.pace-impact-options button {
+  min-height: 36px;
+  border: var(--stroke-default) solid var(--color-stroke);
+  border-radius: var(--radius-card);
+  color: var(--color-text);
+  font-size: 11px;
+}
+
+.pace-impact-options button.active {
+  background: var(--color-cta);
+  color: var(--color-text-inverse-deep);
+}
+
 .composer-actions {
   display: flex;
   flex-direction: column;
@@ -2618,7 +2690,7 @@ input[type="file"] {
 .balance-cards {
   width: 100%;
   display: grid;
-  grid-template-columns: minmax(0, 132px) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
   gap: 8px;
   margin-top: 18px;
 }
@@ -2635,6 +2707,19 @@ input[type="file"] {
   color: var(--color-text);
   overflow: hidden;
   min-width: 0;
+}
+
+button.balance-card {
+  width: 100%;
+  appearance: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+button.balance-card:focus-visible {
+  outline: 1px solid var(--color-cta);
+  outline-offset: 3px;
 }
 
 .account-card {
@@ -2667,7 +2752,12 @@ input[type="file"] {
   font-size: 10px;
   font-weight: 300;
   line-height: 1.2;
-  white-space: nowrap;
+  white-space: normal;
+}
+
+.daily-room-muted {
+  margin-top: 2px;
+  color: rgba(106, 120, 115, 0.55);
 }
 
 .balance-card h2 {

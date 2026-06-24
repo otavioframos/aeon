@@ -19,6 +19,7 @@ import type {
   ReserveModel,
   Scope,
   Settings,
+  TodaySpendModel,
   TrendRow
 } from './types';
 
@@ -37,24 +38,69 @@ function isLivingEntry(categoryId: string) {
   return group === 'Essenciais' || group === 'Desejos';
 }
 
-export function dailyRoomModel(cash: CashSnapshot, hero: HeroModel): DailyRoomModel {
+export function isSmoothedPaceActive(entry: DatedEntry, settings: Settings, now = new Date()) {
+  if (entry.paceImpact !== 'diluted') return false;
+  if (entry.type !== 'out') return false;
+  if (!isRealizedThrough(entry._y, entry._m, entry._d, entry.status, now)) return false;
+  return isDateInCycle(entry._y, entry._m, entry._d, currentCashCycle(settings, now));
+}
+
+export function dailyRoomModel(cash: CashSnapshot, hero: HeroModel, todayLivingSpend = 0): DailyRoomModel {
   const remainingDays = Math.max(1, cash.cycleTotalDays - cash.cycleElapsedDays + 1);
   const elapsedDays = Math.max(1, hero.elapsedDays);
   const periodDays = Math.max(1, hero.periodDays);
-  const dailyTarget = hero.budget / periodDays;
+  const dailyThreshold = hero.budget / periodDays;
   const spentSoFar = hero.burn * elapsedDays;
-  const paceRoomToday = dailyTarget * elapsedDays - spentSoFar;
+  const paceRoomToday = dailyThreshold * elapsedDays - spentSoFar;
+  const realMaxToday = Math.max(0, paceRoomToday + todayLivingSpend);
   const remainingLivingBudget = Math.max(0, hero.budget - spentSoFar);
   const roomBase = Math.max(0, Math.min(remainingLivingBudget, cash.freeToSpend));
+  const cycleRoomToday = roomBase / remainingDays;
+  const todayScope = Math.max(0, Math.min(realMaxToday, dailyThreshold, cycleRoomToday));
+  const todayLeft = todayScope - todayLivingSpend;
 
   return {
-    perDay: roomBase / remainingDays,
+    perDay: cycleRoomToday,
     paceRoomToday,
+    dailyThreshold,
+    realMaxToday,
+    todayScope,
+    todayLeft,
     remainingDays,
     remainingLivingBudget,
     roomBase,
-    status: paceRoomToday >= -0.005 ? 'on pace' : 'attention'
+    status: todayLeft >= -0.005 ? 'on pace' : 'attention'
   };
+}
+
+export function todaySpendModel(currentData: LedgerData, settingsOrNow: Settings | Date = new Date(), maybeNow = new Date()): TodaySpendModel {
+  const hasSettings = !(settingsOrNow instanceof Date);
+  const settings = hasSettings ? settingsOrNow : undefined;
+  const now = hasSettings ? maybeNow : settingsOrNow;
+  const todayYear = now.getFullYear();
+  const todayMonth = now.getMonth();
+  const todayDay = now.getDate();
+  const todayIndex = dateIndex(todayYear, todayMonth, todayDay);
+  const cycle = settings ? currentCashCycle(settings, now) : null;
+
+  return entriesIn(currentData, (y, m, d) => {
+    if (!settings) return y === todayYear && m === todayMonth && d === todayDay;
+    return isDateInCycle(y, m, d, cycle!) && dateIndex(y, m, d) <= todayIndex;
+  })
+    .filter((entry) => entry.type === 'out' && isRealizedThrough(entry._y, entry._m, entry._d, entry.status, now))
+    .reduce<TodaySpendModel>(
+      (model, entry) => {
+        if (entry._y === todayYear && entry._m === todayMonth && entry._d === todayDay) model.total += entry.amount;
+        if (isLivingEntry(entry.cat)) {
+          if (entry._y === todayYear && entry._m === todayMonth && entry._d === todayDay) {
+            model.actualLiving += entry.amount;
+            model.living += entry.amount;
+          }
+        }
+        return model;
+      },
+      { total: 0, living: 0, actualLiving: 0 }
+    );
 }
 
 export function appliedMoneyTotal(entries: DatedEntry[], now = new Date()) {
@@ -158,9 +204,9 @@ export function getDailySpendData(
   if (isCurrentMonthScope(currentYear, currentScope, currentScopeMonth, now)) {
     const cycle = currentCashCycle(currentSettings, now);
     return aggregate(
-      entriesIn(currentData, (y, m, d) => isDateInCycle(y, m, d, cycle) && isRealizedThrough(y, m, d, undefined, now)).filter(
-        (entry) => entry.type === 'out' && isLivingEntry(entry.cat) && isRealizedThrough(entry._y, entry._m, entry._d, entry.status, now)
-      )
+      entriesIn(currentData, (y, m, d) => isDateInCycle(y, m, d, cycle) && isRealizedThrough(y, m, d, undefined, now))
+        .filter((entry) => entry.type === 'out' && isLivingEntry(entry.cat) && isRealizedThrough(entry._y, entry._m, entry._d, entry.status, now))
+        .filter((entry) => entry.amount > 0)
     );
   }
 

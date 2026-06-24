@@ -1,8 +1,10 @@
 <script lang="ts">
+  import { dailyRoomCopy } from '$lib/copy';
   import { fmtNum } from '$lib/finance';
-  import type { DailyRoomModel } from '$lib/types';
+  import type { DailyRoomModel, TodaySpendModel } from '$lib/types';
 
   export let dailyRoom: DailyRoomModel;
+  export let todaySpend: TodaySpendModel = { total: 0, living: 0, actualLiving: 0 };
   export let reserveBalance = 0;
   export let reserveSeries: number[] = [];
   export let reserveTarget = 0;
@@ -13,11 +15,28 @@
   const padTop = 4;
   const padBottom = 5;
 
-  $: dailyRoomLabel = formatMoneyLabel(dailyRoom.perDay);
-  $: paceRoomLabel = formatMoneyLabel(Math.abs(dailyRoom.paceRoomToday));
-  $: paceCopy = dailyRoom.paceRoomToday >= 0 ? `${paceRoomLabel} left today` : `${paceRoomLabel} over pace`;
+  let showFullRecovery = false;
+
+  $: recoveryLabel = formatMoneyLabel(dailyRoom.perDay);
+  $: todayScopeLabel = formatMoneyLabel(dailyRoom.todayScope);
+  $: spentTodayLabel = formatMoneyLabel(todaySpend.actualLiving);
+  $: leftTodayLabel = formatMoneyLabel(Math.abs(dailyRoom.todayLeft));
+  $: normalDayLabel = formatMoneyLabel(dailyRoom.dailyThreshold);
+  $: cycleDeltaLabel = formatMoneyLabel(Math.abs(dailyRoom.dailyThreshold - dailyRoom.perDay));
+  $: isCycleCompromised = dailyRoom.perDay < dailyRoom.dailyThreshold - 0.005;
+  $: cardCopy = dailyRoomCopy({
+    recoveryLabel,
+    todayScopeLabel,
+    spentTodayLabel,
+    leftTodayLabel,
+    normalDayLabel,
+    cycleDeltaLabel,
+    isCycleCompromised,
+    isOnPace: dailyRoom.todayLeft >= -0.005
+  });
+  $: activeCardLabel = showFullRecovery ? cardCopy.cycleValue : cardCopy.todayValue;
   $: reserveLabel = formatMoneyLabel(reserveBalance);
-  $: dailyRoomSize = valueSize(dailyRoomLabel, 32, 19);
+  $: dailyRoomSize = valueSize(activeCardLabel, 32, 19);
   $: reserveSize = valueSize(reserveLabel, 24, 18);
   $: cleanSeries = reserveSeries.length ? reserveSeries : [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
   $: maxChartValue = Math.max(1, reserveTarget, ...cleanSeries);
@@ -49,16 +68,30 @@
 </script>
 
 <section class="balance-cards" aria-label="Balances">
-  <article class="balance-card account-card daily-room-card">
+  <button
+    class="balance-card account-card daily-room-card"
+    type="button"
+    aria-pressed={showFullRecovery}
+    aria-label={showFullRecovery ? "Show today's scope" : 'Show cycle room'}
+    on:click={() => (showFullRecovery = !showFullRecovery)}
+  >
     <svg class="balance-arrow" viewBox="0 0 24 24"><path d="M7 17L17 7" /><path d="M9 7h8v8" /></svg>
     <span class:on={dailyRoom.status === 'on pace'} class="daily-room-chip">{dailyRoom.status}</span>
-    <h2>Daily Room</h2>
+    <h2>{showFullRecovery ? cardCopy.cycleTitle : cardCopy.todayTitle}</h2>
+    {#if showFullRecovery}
+      <p class="daily-room-sub cycle-room-support">{cardCopy.cycleSupport}</p>
+    {/if}
     <div class="balance-value account-value" style:--balance-value-size={`${dailyRoomSize}px`}>
       <span>R$</span>
-      <strong>{dailyRoomLabel}</strong>
+      <strong>{activeCardLabel}</strong>
     </div>
-    <p class="daily-room-sub">{paceCopy}</p>
-  </article>
+    {#if showFullRecovery}
+      <p class="daily-room-sub daily-room-muted">{cardCopy.cycleDeltaLine}</p>
+    {:else}
+      <p class="daily-room-sub">{cardCopy.todaySpendLine}</p>
+      <p class="daily-room-sub daily-room-muted">{cardCopy.todayNormalLine}</p>
+    {/if}
+  </button>
 
   <article class="balance-card reserve-balance-card">
     <svg class="sparkline" viewBox={`0 0 ${chartWidth} ${chartHeight}`} preserveAspectRatio="none" aria-hidden="true">
@@ -72,7 +105,7 @@
         stroke-linejoin="round"
       />
     </svg>
-    <h2>Reserve Balance</h2>
+    <h2>Protected Reserve</h2>
     <div class="balance-value reserve-value" style:--balance-value-size={`${reserveSize}px`}>
       <span>R$</span>
       <strong>{reserveLabel}</strong>

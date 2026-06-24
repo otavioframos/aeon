@@ -1,5 +1,5 @@
 import { daysInMonth, key, uid } from './finance';
-import type { Entry, EntryType, TransactionStatus } from './types';
+import type { Entry, EntryType, PaceImpact, TransactionStatus } from './types';
 
 export interface TransactionDraft {
   totalAmount: number;
@@ -8,6 +8,7 @@ export interface TransactionDraft {
   desc: string;
   purchaseDate: string;
   installmentCount: number;
+  paceImpact?: PaceImpact;
 }
 
 export interface GeneratedTransactionEntry {
@@ -74,6 +75,7 @@ export function buildTransactionEntries(draft: TransactionDraft): GeneratedTrans
   const groupId = installmentCount > 1 ? uid() : undefined;
   const amounts = splitAmount(draft.totalAmount, installmentCount);
   const createdAt = new Date().toISOString();
+  const paceImpact = draft.type === 'out' && draft.paceImpact === 'diluted' ? 'diluted' : undefined;
 
   return amounts.map((amount, index) => {
     const target = addMonthsClamped(purchaseDate, index);
@@ -92,7 +94,8 @@ export function buildTransactionEntries(draft: TransactionDraft): GeneratedTrans
         sourceAmount: Math.abs(draft.totalAmount),
         installmentGroupId: groupId,
         installmentIndex: installmentCount > 1 ? index + 1 : undefined,
-        installmentCount: installmentCount > 1 ? installmentCount : undefined
+        installmentCount: installmentCount > 1 ? installmentCount : undefined,
+        paceImpact
       }
     };
   });

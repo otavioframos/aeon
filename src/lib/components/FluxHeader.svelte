@@ -16,7 +16,7 @@
   </div>
   <div class="pill-sep"></div>
   <div class="pill cash-pill primary">
-    <span class="pl">free this cycle</span>
+    <span class="pl">left this cycle</span>
     <span class:neg={cash.freeToSpend < 0} class="pv mono">R$ {fmtNum(cash.freeToSpend)}</span>
   </div>
 </div>

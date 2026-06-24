@@ -20,9 +20,9 @@
   let weekendRuleOpen = false;
 
   const goalSliders: { key: GoalKey; label: string; caption: string; color: string; icon: string }[] = [
-    { key: 'essenciais', label: 'Essentials', caption: 'rent, food, recurring needs', color: '#85b694', icon: '<path d="M3 12l9-9 9 9"/><path d="M5 10v10h14V10"/>' },
+    { key: 'essenciais', label: 'Needs', caption: 'rent, food, recurring needs', color: '#85b694', icon: '<path d="M3 12l9-9 9 9"/><path d="M5 10v10h14V10"/>' },
     { key: 'desejos', label: 'Desires', caption: 'comfort, fun, flexible spend', color: '#6b6fa0', icon: '<path d="M12 21s-7-4.5-7-10a4 4 0 017-2 4 4 0 017 2c0 5.5-7 10-7 10z"/>' },
-    { key: 'investimentos', label: 'Investment', caption: 'portfolio contribution', color: '#66710e', icon: '<path d="M3 17l6-6 4 4 8-8"/><path d="M17 7h4v4"/>' }
+    { key: 'investimentos', label: 'Reserve / investing', caption: 'applied money target', color: '#66710e', icon: '<path d="M3 17l6-6 4 4 8-8"/><path d="M17 7h4v4"/>' }
   ];
 
   const meshSliders: { key: MeshKey; label: string; min: number; max: number; step: number; decimals: number }[] = [
@@ -87,7 +87,7 @@
           <section class="settings-hero-card">
             <div class="settings-balance-grid">
               <div>
-                <span>Balance anchor</span>
+                <span>Money I have now</span>
                 <label>
                   <small>R$</small>
                   <input
@@ -99,14 +99,14 @@
                 </label>
               </div>
               <div>
-                <span>Reference income</span>
+                <span>Usual monthly income</span>
                 <label>
                   <small>R$</small>
                   <input type="number" value={settings.salary} step="100" on:input={(event) => onUpdateSetting('salary', parseFloat((event.currentTarget as HTMLInputElement).value) || 0)} />
                 </label>
               </div>
             </div>
-            <p>Anchor balance drives Flux. Reference income drives pace and targets.</p>
+            <p>Use your real bank balance after paid bills. Income only sets targets and rhythm.</p>
           </section>
 
           <section class="settings-card cycle-card">
@@ -150,7 +150,7 @@
             <div class="settings-card-head">
               <div>
                 <h2>Allocation plan</h2>
-                <p>Monthly target: R$ {fmt(monthlyInvestmentTarget)} into investment lanes.</p>
+                <p>Monthly target: R$ {fmt(monthlyInvestmentTarget)} into reserve / investing.</p>
               </div>
               <span class:off={allocationTotal !== 100} class="settings-total">{allocationTotal}%</span>
             </div>

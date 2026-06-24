@@ -1,9 +1,12 @@
 <script lang="ts">
   import { catById } from '$lib/categories';
   import { fmtNum, MONTHS_FULL } from '$lib/finance';
-  import type { DatedEntry } from '$lib/types';
+  import { isSmoothedPaceActive } from '$lib/viewModels';
+  import type { DatedEntry, Settings } from '$lib/types';
 
   export let entries: DatedEntry[] = [];
+  export let settings: Settings;
+  export let now = new Date();
   export let onOpen: () => void;
   export let onEdit: (entry: DatedEntry) => void;
 
@@ -36,7 +39,12 @@
           </span>
           <span class="movement-main">
             <span class="movement-title">{titleFor(entry)}</span>
-            <span class="movement-sub">{subtitleFor(entry)}</span>
+            <span class="movement-meta">
+              <span class="movement-sub">{subtitleFor(entry)}</span>
+              {#if isSmoothedPaceActive(entry, settings, now)}
+                <span class="movement-pill">Smoothed</span>
+              {/if}
+            </span>
           </span>
           <span class:pos={entry.type === 'in'} class:neg={entry.type === 'out'} class="movement-amount">
             {entry.type === 'in' ? '+' : '−'}R$ {fmtNum(entry.amount)}

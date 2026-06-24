@@ -32,7 +32,7 @@
   <article class="metric-card metric-card-pace">
     <div class="metric-chip" class:on={paceOk}>{paceOk ? 'on pace' : 'attention'}</div>
     <div class="metric-name">Living Pace</div>
-    <div class="metric-sub">essentials + desires: R$ {fmtNum(dailyThreshold)}</div>
+    <div class="metric-sub">reference R$ {fmtNum(dailyThreshold)}</div>
     <div class="metric-value">R$ {fmtNum(hero.burn)}</div>
   </article>
 
@@ -61,7 +61,7 @@
 
   <article class="metric-card metric-card-reserve">
     <svg class="metric-icon" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
-    <div class="metric-name">Emergency fund</div>
+    <div class="metric-name">Protected reserve</div>
     <div class="metric-value metric-value-runway"><span>{runwayValue}</span><small>mo</small></div>
     <div class="metric-sub">{reserve ? `target 6 mo · ${Math.max(0, 6 - reserve.runway).toFixed(1)} to go` : 'target 6 mo'}</div>
   </article>
@@ -69,8 +69,8 @@
   <article class="metric-card metric-card-invested">
     <div class="metric-arrow">↗</div>
     <div class="metric-value">{investedPctLabel}%</div>
-    <div class="metric-name">Income Invested</div>
-    <div class="metric-sub">{fmtShort(investmentTotal)} / {fmtShort(investmentTarget)} target</div>
+    <div class="metric-name">Saved from income</div>
+    <div class="metric-sub">reserve + investments · {fmtShort(investmentTotal)} / {fmtShort(investmentTarget)}</div>
   </article>
 
   <article class="metric-card metric-card-pressure">

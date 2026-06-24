@@ -3,12 +3,14 @@
   import DatePicker from '$lib/components/DatePicker.svelte';
   import { fmtNum, parseAmount } from '$lib/finance';
   import { addMonthsClamped, splitAmount, todayISO } from '$lib/transactions';
+  import type { PaceImpact } from '$lib/types';
 
   export let amount = '';
   export let desc = '';
   export let selCat = '';
   export let purchaseDate = '';
   export let installmentCount = 1;
+  export let paceImpact: PaceImpact = 'normal';
   export let controlOpen = false;
   export let amountInput: HTMLInputElement | undefined = undefined;
   export let onSubmit: () => void;
@@ -17,11 +19,15 @@
   const installmentOptions = [1, 2, 3, 6, 12];
   let customInstallmentsOpen = false;
   let customInstallmentValue = '10';
+  let paceOptionsOpen = false;
 
   $: selectedCategory = catById(selCat);
   $: controlLabel = selectedCategory?.name || 'Categories & Description';
   $: isIncome = selCat === 'renda';
-  $: isContribution = !isIncome && selectedCategory?.group === 'Investimentos';
+  $: isSaving = selCat === 'invest' || selCat === 'reserva';
+  $: canDilute = !isIncome && !isSaving && installmentCount === 1;
+  $: if (!canDilute && paceImpact !== 'normal') paceImpact = 'normal';
+  $: if (!canDilute && paceOptionsOpen) paceOptionsOpen = false;
   $: parsedAmount = parseAmount(amount);
   $: hasAmount = !Number.isNaN(parsedAmount) && parsedAmount !== 0;
   $: installmentAmount =
@@ -32,11 +38,9 @@
   $: submitLabel = isIncome
     ? 'Launch Income'
     : installmentCount > 1
-      ? isContribution
-        ? `Launch ${installmentCount} Contributions`
-        : `Launch ${installmentCount} Expenses`
-      : isContribution
-        ? 'Launch Contribution'
+      ? `Launch ${installmentCount} installments`
+      : isSaving
+        ? 'Save Money'
         : 'Launch Expense';
   $: entryValueSize = amountFontSize(amount);
 
@@ -159,6 +163,25 @@
           </button>
         </div>
       </section>
+
+      {#if canDilute}
+        <section class:open={paceOptionsOpen} class="pace-impact-block" aria-label="Pace impact">
+          <button class="pace-impact-trigger" type="button" aria-expanded={paceOptionsOpen} on:click={() => (paceOptionsOpen = !paceOptionsOpen)}>
+            <span>Pace impact</span>
+            <strong>{paceImpact === 'diluted' ? 'Diluted' : 'Normal'}</strong>
+          </button>
+          {#if paceOptionsOpen}
+            <div class="pace-impact-options" role="group" aria-label="Pace impact mode">
+              <button class:active={paceImpact === 'normal'} type="button" on:click={() => (paceImpact = 'normal')}>
+                Normal
+              </button>
+              <button class:active={paceImpact === 'diluted'} type="button" on:click={() => (paceImpact = 'diluted')}>
+                Diluted
+              </button>
+            </div>
+          {/if}
+        </section>
+      {/if}
     </div>
 
     <div class="composer-actions">
